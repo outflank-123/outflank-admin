@@ -57,10 +57,10 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
   const statusOptions = [
     { value: 'pending', label: 'Pending', icon: Clock, colorClass: 'bg-amber-100 text-amber-800' },
     { value: 'paid', label: 'Paid', icon: CheckCircle2, colorClass: 'bg-emerald-100 text-emerald-800' },
-    { value: 'preparing', label: 'Preparing', icon: ChefHat, colorClass: 'bg-purple-100 text-purple-800' },
-    { value: 'in_transit', label: 'In Transit', icon: Truck, colorClass: 'bg-blue-100 text-blue-800' },
+    { value: 'shipped', label: 'Shipped', icon: Truck, colorClass: 'bg-blue-100 text-blue-800' },
     { value: 'delivered', label: 'Delivered', icon: CheckCircle2, colorClass: 'bg-green-100 text-green-800' },
-    { value: 'cancelled', label: 'Cancelled', icon: XCircle, colorClass: 'bg-red-100 text-red-800' },
+    { value: 'failed', label: 'Failed', icon: XCircle, colorClass: 'bg-red-100 text-red-800' },
+    { value: 'cancelled', label: 'Cancelled', icon: XCircle, colorClass: 'bg-gray-100 text-gray-800' },
   ]
 
   const getStatusStyles = (statusValue: string) => {

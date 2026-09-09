@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     const supabase = await createClient()
 
     // Validate if status is one of the allowed values
-    const allowedStatuses = ['pending', 'preparing', 'in_transit', 'delivered', 'cancelled', 'paid']
+    const allowedStatuses = ['pending', 'paid', 'failed', 'shipped', 'delivered', 'cancelled']
     if (!allowedStatuses.includes(status)) {
       return NextResponse.json({ error: 'Invalid status value' }, { status: 400 })
     }
