@@ -1,0 +1,159 @@
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@700&family=Montserrat:wght@700;800&family=Playfair+Display:ital,wght@0,700;1,700&family=Space+Grotesk:wght@700&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), 'Inter', system-ui, sans-serif;
+
+  /* ─── Outflank Brand Palette ─── */
+  --color-brand-red:       #e3231c;
+  --color-brand-red-dark:  #b91a14;
+  --color-brand-red-light: #ff4038;
+  --color-brand-grey:      #9ca3af;
+
+  /* ─── Apple-style Light Surface System ─── */
+  --color-surface-base:    #fbfbfd;
+  --color-surface-1:       #ffffff;
+  --color-surface-2:       #f5f5f7;
+  --color-surface-3:       #ececec;
+
+  /* ─── Typography ─── */
+  --color-text-primary:    #1d1d1f;
+  --color-text-secondary:  #6e6e73;
+  --color-text-tertiary:   #aeaeb2;
+
+  /* ─── Borders ─── */
+  --color-border-subtle:   rgba(0, 0, 0, 0.06);
+  --color-border-default:  rgba(0, 0, 0, 0.10);
+  --color-border-strong:   rgba(0, 0, 0, 0.18);
+
+  /* ─── Shadows ─── */
+  --shadow-card:           0 2px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-card-hover:     0 8px 32px rgba(0, 0, 0, 0.10), 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-modal:          0 24px 80px rgba(0, 0, 0, 0.16);
+
+  /* ─── Animations ─── */
+  --animate-fade-in:       fade-in 0.4s ease-out forwards;
+  --animate-slide-up:      slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-scale-in:      scale-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-shimmer:       shimmer 2s ease-in-out infinite;
+}
+
+/* ─────────────────────────────────────────
+   KEYFRAMES
+───────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 1; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ─────────────────────────────────────────
+   BASE
+───────────────────────────────────────── */
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: #fbfbfd;
+    color: #1d1d1f;
+    min-height: 100vh;
+    overflow-x: hidden;
+    font-family: var(--font-sans);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    color: #1d1d1f;
+    letter-spacing: -0.02em;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.15);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0,0,0,0.25);
+  }
+
+  /* Selection */
+  ::selection {
+    background-color: rgba(227, 35, 28, 0.15);
+    color: #b91a14;
+  }
+}
+
+/* ─────────────────────────────────────────
+   UTILITIES
+───────────────────────────────────────── */
+@layer utilities {
+  .tracking-tight-xl {
+    letter-spacing: -0.035em;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+  }
+
+  .gradient-brand {
+    background: linear-gradient(135deg, #e3231c 0%, #ff4038 100%);
+  }
+
+  .gradient-surface {
+    background: linear-gradient(180deg, #ffffff 0%, #f5f5f7 100%);
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .animate-spin-slow {
+    animation: spin-slow 8s linear infinite;
+  }
+
+  /* Status badge colors */
+  .status-new        { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+  .status-contacted  { background: #fefce8; color: #854d0e; border: 1px solid #fde68a; }
+  .status-qualified  { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+  .status-closed     { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+}
