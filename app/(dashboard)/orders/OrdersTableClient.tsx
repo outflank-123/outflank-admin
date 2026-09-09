@@ -10,6 +10,7 @@ interface OrderItem {
   quantity: number
   price_at_time: number
   selected_color: string | null
+  products?: any
 }
 
 interface Order {
@@ -17,12 +18,7 @@ interface Order {
   customer_name: string
   customer_email: string
   customer_phone: string
-  shipping_address: {
-    addressLine1: string
-    city: string
-    state: string
-    pincode: string
-  }
+  shipping_address: any // JSON could be string or object
   total_amount: number
   payment_method: string
   status: string
@@ -315,11 +311,19 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                                 </p>
                                 <div className="pt-2 border-t border-gray-100">
                                   {order.shipping_address ? (
-                                    <>
-                                      <p>{order.shipping_address.addressLine1}</p>
-                                      <p>{order.shipping_address.city}, {order.shipping_address.state}</p>
-                                      <p>PIN: {order.shipping_address.pincode}</p>
-                                    </>
+                                    (() => {
+                                      let addr = order.shipping_address
+                                      if (typeof addr === 'string') {
+                                        try { addr = JSON.parse(addr) } catch (e) {}
+                                      }
+                                      return (
+                                        <>
+                                          <p>{addr.addressLine1}</p>
+                                          <p>{addr.city}, {addr.state}</p>
+                                          <p>PIN: {addr.pincode}</p>
+                                        </>
+                                      )
+                                    })()
                                   ) : (
                                     <p className="text-red-500 italic">No shipping address provided</p>
                                   )}
@@ -336,15 +340,24 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                               <div className="space-y-4">
                                 {order.retail_order_items && order.retail_order_items.length > 0 ? (
                                   order.retail_order_items.map((item) => (
-                                    <div key={item.id} className="flex justify-between items-start pb-3 border-b border-gray-100 last:border-0 last:pb-0">
-                                      <div>
+                                    <div key={item.id} className="flex gap-4 items-start pb-3 border-b border-gray-100 last:border-0 last:pb-0">
+                                      {item.products && (Array.isArray(item.products) ? item.products[0]?.primary_image_url : item.products?.primary_image_url) ? (
+                                        <div className="w-12 h-12 flex-shrink-0 bg-gray-50 rounded-md overflow-hidden border border-gray-100">
+                                          <img src={Array.isArray(item.products) ? item.products[0]?.primary_image_url : item.products.primary_image_url} alt={item.product_name} className="w-full h-full object-cover" />
+                                        </div>
+                                      ) : (
+                                        <div className="w-12 h-12 flex-shrink-0 bg-gray-50 rounded-md border border-gray-100 flex items-center justify-center">
+                                          <Package className="h-5 w-5 text-gray-300" />
+                                        </div>
+                                      )}
+                                      <div className="flex-1">
                                         <p className="text-sm font-medium text-gray-900">{item.product_name}</p>
                                         <p className="text-xs text-gray-500 mt-0.5">
                                           Qty: {item.quantity} {item.selected_color && `• Color: ${item.selected_color}`}
                                         </p>
                                       </div>
-                                      <p className="text-sm font-medium text-gray-900">
-                                        {formatCurrency(item.price_at_time * item.quantity)}
+                                      <p className="text-sm font-medium text-gray-900 mt-1">
+                                        {formatCurrency(Number(item.price_at_time) * item.quantity)}
                                       </p>
                                     </div>
                                   ))

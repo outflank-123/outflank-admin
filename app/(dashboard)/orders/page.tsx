@@ -24,7 +24,10 @@ export default async function RetailOrdersPage() {
         product_name,
         quantity,
         price_at_time,
-        selected_color
+        selected_color,
+        products (
+          primary_image_url
+        )
       )
     `)
     .order('created_at', { ascending: false })
