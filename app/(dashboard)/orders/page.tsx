@@ -13,10 +13,19 @@ export default async function RetailOrdersPage() {
       id,
       customer_name,
       customer_email,
+      customer_phone,
+      shipping_address,
       total_amount,
       payment_method,
       status,
-      created_at
+      created_at,
+      retail_order_items (
+        id,
+        product_name,
+        quantity,
+        price_at_time,
+        selected_color
+      )
     `)
     .order('created_at', { ascending: false })
 
