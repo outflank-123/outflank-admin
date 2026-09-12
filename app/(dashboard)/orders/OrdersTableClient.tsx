@@ -38,7 +38,12 @@ interface Order {
 function parseAddress(raw: any) {
   if (!raw) return null
   if (typeof raw === 'object') return raw
-  try { return JSON.parse(raw) } catch { return { addressLine1: raw } }
+  try { return JSON.parse(raw) } catch { 
+    // Fallback for old string addresses: try to extract pincode from the end
+    const match = raw.match(/-?\\s*(\\d{6})$/)
+    const pincode = match ? match[1] : ''
+    return { addressLine1: raw, pincode } 
+  }
 }
 
 // Shadowfax status to human-readable
@@ -365,7 +370,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                                       </>
                                     ) : (
                                       <p className="text-xs text-gray-400 mt-0.5">
-                                        {order.status === 'paid' ? 'Ready to dispatch — click the button to generate AWB' : `Order must be "Paid" to dispatch (currently: ${order.status})`}
+                                        {['paid', 'shipped'].includes(order.status) ? 'Ready to dispatch — click the button to generate AWB' : `Order must be "Paid" to dispatch (currently: ${order.status})`}
                                       </p>
                                     )}
                                   </div>
@@ -393,7 +398,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                                       </a>
                                     </>
                                   )}
-                                  {!order.awb_number && order.status === 'paid' && (
+                                  {!order.awb_number && ['paid', 'shipped'].includes(order.status) && (
                                     <button
                                       onClick={e => { e.stopPropagation(); setDispatchOrder(order); setDispatchError(null); setDispatchSuccess(null) }}
                                       className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition-colors shadow-md shadow-blue-200"
@@ -422,8 +427,8 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                                     return addr ? (
                                       <div className="pt-2 border-t border-gray-100 space-y-0.5">
                                         <p>{addr.addressLine1 || addr.address}</p>
-                                        <p>{addr.city}{addr.state ? `, ${addr.state}` : ''}</p>
-                                        <p className="font-bold text-gray-900">PIN: {addr.pincode}</p>
+                                        {(addr.city || addr.state) && <p>{addr.city}{addr.state ? `, ${addr.state}` : ''}</p>}
+                                        {addr.pincode && <p className="font-bold text-gray-900">PIN: {addr.pincode}</p>}
                                       </div>
                                     ) : <p className="text-red-500 italic">No address</p>
                                   })()}
