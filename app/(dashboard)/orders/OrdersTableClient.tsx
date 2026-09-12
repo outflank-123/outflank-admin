@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useMemo } from 'react'
-import { Eye, Clock, CheckCircle2, XCircle, Package, Truck, Loader2, ChevronDown, ChevronRight, Search, MapPin, Phone, ShoppingBag } from 'lucide-react'
+import { Clock, CheckCircle2, XCircle, Package, Truck, Loader2, ChevronDown, ChevronRight, Search, MapPin, Phone, ShoppingBag, Send, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 interface OrderItem {
@@ -23,6 +23,9 @@ interface Order {
   payment_method: string
   status: string
   created_at: string
+  awb_number?: string | null
+  dispatched_at?: string | null
+  shadowfax_status?: string | null
   retail_order_items: OrderItem[]
 }
 
@@ -35,6 +38,12 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState('all')
   const [dateFilter, setDateFilter] = useState('all_time')
+
+  // Shadowfax Dispatch
+  const [dispatchModalOrderId, setDispatchModalOrderId] = useState<string | null>(null)
+  const [dispatchWeightKg, setDispatchWeightKg] = useState('0.5')
+  const [dispatching, setDispatching] = useState(false)
+  const [dispatchError, setDispatchError] = useState<string | null>(null)
 
   const router = useRouter()
 
@@ -79,6 +88,37 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
     }
   }
 
+  const handleDispatch = async () => {
+    if (!dispatchModalOrderId) return
+    setDispatching(true)
+    setDispatchError(null)
+    try {
+      const res = await fetch('/api/admin/shadowfax/dispatch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: dispatchModalOrderId, weightKg: parseFloat(dispatchWeightKg) }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setDispatchError(data.error || 'Dispatch failed. Please try again.')
+        return
+      }
+      // Update local state
+      setOrders(prev => prev.map(o =>
+        o.id === dispatchModalOrderId
+          ? { ...o, status: 'shipped', awb_number: data.awb_number, dispatched_at: new Date().toISOString() }
+          : o
+      ))
+      setDispatchModalOrderId(null)
+      setDispatchWeightKg('0.5')
+      router.refresh()
+    } catch (err) {
+      setDispatchError('Network error. Please try again.')
+    } finally {
+      setDispatching(false)
+    }
+  }
+
   const statusOptions = [
     { value: 'pending', label: 'Pending', icon: Clock, colorClass: 'bg-amber-100 text-amber-800' },
     { value: 'paid', label: 'Paid', icon: CheckCircle2, colorClass: 'bg-emerald-100 text-emerald-800' },
@@ -94,15 +134,11 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
   }
 
   // Filter Logic
-  const filteredOrders = useMemo(() => {
+  // 1. Base Filter (Date & Search only)
+  const baseFilteredOrders = useMemo(() => {
     let result = [...orders]
 
-    // 1. Status Tab Filter
-    if (activeTab !== 'all') {
-      result = result.filter(o => o.status === activeTab)
-    }
-
-    // 2. Date Filter
+    // Date Filter
     const now = new Date()
     if (dateFilter === 'today') {
       result = result.filter(o => new Date(o.created_at).toDateString() === now.toDateString())
@@ -120,7 +156,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
       result = result.filter(o => new Date(o.created_at) >= last30Days)
     }
 
-    // 3. Search Filter
+    // Search Filter
     if (searchQuery) {
       const lowerQuery = searchQuery.toLowerCase()
       result = result.filter(o => 
@@ -132,7 +168,13 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
     }
 
     return result
-  }, [orders, activeTab, dateFilter, searchQuery])
+  }, [orders, dateFilter, searchQuery])
+
+  // 2. Final Filter (Base + Tab)
+  const filteredOrders = useMemo(() => {
+    if (activeTab === 'all') return baseFilteredOrders
+    return baseFilteredOrders.filter(o => o.status === activeTab)
+  }, [baseFilteredOrders, activeTab])
 
   const tabs = [
     { value: 'all', label: 'All Orders' },
@@ -178,8 +220,8 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
         <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
           {tabs.map((tab) => {
             const count = tab.value === 'all' 
-              ? orders.length 
-              : orders.filter(o => o.status === tab.value).length
+              ? baseFilteredOrders.length 
+              : baseFilteredOrders.filter(o => o.status === tab.value).length
 
             return (
               <button
@@ -295,8 +337,51 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                     {expandedOrderId === order.id && (
                       <tr>
                         <td colSpan={6} className="bg-gray-50/80 px-4 py-6 border-b border-gray-200">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-                            
+                          <div className="max-w-5xl mx-auto space-y-4">
+
+                            {/* Shadowfax Dispatch Bar */}
+                            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 flex flex-wrap items-center justify-between gap-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center">
+                                  <Truck size={16} className="text-blue-600" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-semibold text-gray-900">Shadowfax Dispatch</p>
+                                  {order.awb_number ? (
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                      AWB: <span className="font-mono font-bold text-blue-700">{order.awb_number}</span>
+                                      {order.shadowfax_status && (
+                                        <span className="ml-2 text-gray-400">· {order.shadowfax_status}</span>
+                                      )}
+                                    </p>
+                                  ) : (
+                                    <p className="text-xs text-gray-400 mt-0.5">Not yet dispatched</p>
+                                  )}
+                                </div>
+                              </div>
+                              {!order.awb_number && order.status === 'paid' ? (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setDispatchModalOrderId(order.id); setDispatchError(null) }}
+                                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
+                                >
+                                  <Send size={14} />
+                                  Dispatch via Shadowfax
+                                </button>
+                              ) : order.awb_number ? (
+                                <a
+                                  href={`https://shadowfax.in/tracking/${order.awb_number}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-semibold hover:bg-gray-200 transition-colors"
+                                >
+                                  <Truck size={14} />
+                                  Track Shipment
+                                </a>
+                              ) : null}
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* Shipping Details */}
                             <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
                               <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
@@ -368,6 +453,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                             </div>
 
                           </div>
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -378,6 +464,68 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
           </table>
         </div>
       </div>
+
+      {/* Shadowfax Dispatch Modal */}
+      {dispatchModalOrderId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setDispatchModalOrderId(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center">
+                  <Send size={18} className="text-blue-600" />
+                </div>
+                <h2 className="text-lg font-bold text-gray-900">Dispatch via Shadowfax</h2>
+              </div>
+              <button onClick={() => setDispatchModalOrderId(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-xs text-gray-500 mb-1">Order ID</p>
+                <p className="font-mono text-sm font-bold text-gray-900">#{dispatchModalOrderId.split('-')[0].toUpperCase()}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Package Weight (kg)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  value={dispatchWeightKg}
+                  onChange={e => setDispatchWeightKg(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g. 0.5"
+                />
+                <p className="text-xs text-gray-400 mt-1">Default is 0.5 kg. Update this for accurate shipping.</p>
+              </div>
+
+              {dispatchError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-sm text-red-600">{dispatchError}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setDispatchModalOrderId(null)}
+                  className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDispatch}
+                  disabled={dispatching}
+                  className="flex-1 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
+                >
+                  {dispatching ? <><Loader2 size={14} className="animate-spin" /> Dispatching...</> : <><Send size={14} /> Confirm Dispatch</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
