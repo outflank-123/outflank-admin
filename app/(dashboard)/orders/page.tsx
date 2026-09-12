@@ -1,10 +1,10 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import OrdersTableClient from './OrdersTableClient'
 
 export const revalidate = 0
 
 export default async function RetailOrdersPage() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   // Fetch orders, ordered by newest first
   const { data: orders, error } = await supabase
@@ -19,6 +19,9 @@ export default async function RetailOrdersPage() {
       payment_method,
       status,
       created_at,
+      awb_number,
+      dispatched_at,
+      shadowfax_status,
       retail_order_items (
         id,
         product_name,
@@ -31,6 +34,7 @@ export default async function RetailOrdersPage() {
       )
     `)
     .order('created_at', { ascending: false })
+
 
   if (error) {
     console.error('Error fetching retail orders:', error)
