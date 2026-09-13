@@ -1,0 +1,30 @@
+{
+  "order_details": {
+    "client_order_id": "TEST-1234",
+    "payment_mode": "prepaid",
+    "cod_amount": 0,
+    "total_amount": 13650
+  },
+  "delivery_details": {
+    "name": "Alam",
+    "contact_number": "8447334407",
+    "address_line_1": "900, 30/6, Jafrabad, Delhi, Delhi - 110053",
+    "city": "Unknown",
+    "state": "Unknown",
+    "pincode": "110053"
+  },
+  "product_details": {
+    "name": "HydroShield Double-Wall Vacuum Sports Bottle 750ml x21",
+    "quantity": 1,
+    "price": 13650,
+    "weight": 0.5
+  },
+  "rto_details": {
+    "name": "Outflank Warehouse",
+    "contact_number": "9999999999",
+    "address_line_1": "Outflank Warehouse, Delhi",
+    "city": "Delhi",
+    "state": "Delhi",
+    "pincode": "110001"
+  }
+}

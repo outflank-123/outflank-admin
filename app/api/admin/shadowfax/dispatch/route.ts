@@ -47,9 +47,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Parse the shipping address (stored as JSON string or object)
-    let addr = order.shipping_address
+    let addr: any = order.shipping_address
     if (typeof addr === 'string') {
-      try { addr = JSON.parse(addr) } catch {}
+      try { 
+        addr = JSON.parse(addr) 
+      } catch {
+        const match = addr.match(/-?\\s*(\\d{6})$/)
+        const pincode = match ? match[1] : '110001'
+        addr = { addressLine1: addr, city: 'Unknown', state: 'Unknown', pincode }
+      }
     }
 
     const productSummary = order.retail_order_items
@@ -62,30 +68,39 @@ export async function POST(req: NextRequest) {
         client_order_id: orderId,
         payment_mode: order.payment_method === 'cod' ? 'cod' : 'prepaid',
         cod_amount: order.payment_method === 'cod' ? Number(order.total_amount) : 0,
-        total_amount: Number(order.total_amount),
+        product_value: Number(order.total_amount),
       },
-      delivery_details: {
+      customer_details: {
         name: order.customer_name,
-        contact_number: order.customer_phone,
-        address_line_1: addr?.addressLine1 || addr?.address || 'N/A',
+        contact: order.customer_phone,
+        address_line_1: addr?.addressLine1 || addr?.address || (typeof addr === 'string' ? addr : 'N/A'),
         city: addr?.city || 'Delhi',
         state: addr?.state || 'Delhi',
         pincode: String(addr?.pincode || '110001'),
       },
-      product_details: {
-        name: productSummary,
-        quantity: 1,
-        price: Number(order.total_amount),
-        weight: weightKg,
-      },
-      rto_details: {
+      pickup_details: {
         name: 'Outflank Warehouse',
-        contact_number: '9999999999',
+        contact: '9999999999',
         address_line_1: 'Outflank Warehouse, Delhi',
         city: 'Delhi',
         state: 'Delhi',
         pincode: '110001',
       },
+      return_details: {
+        return_type: 'origin',
+        name: 'Outflank Warehouse',
+        contact: '9999999999',
+        address_line_1: 'Outflank Warehouse, Delhi',
+        city: 'Delhi',
+        state: 'Delhi',
+        pincode: '110001',
+      },
+      product_details: [{
+        name: productSummary,
+        quantity: 1,
+        price: Number(order.total_amount),
+        weight: weightKg,
+      }]
     }
 
     console.log('[Shadowfax Dispatch] Sending to Shadowfax:', JSON.stringify(sfxBody, null, 2))
