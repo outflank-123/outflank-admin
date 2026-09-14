@@ -11,8 +11,14 @@ export async function POST(req: Request) {
 
     const supabase = await createClient()
 
+    // Auth Check
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     // Validate if status is one of the allowed values
-    const allowedStatuses = ['pending', 'paid', 'failed', 'shipped', 'delivered', 'cancelled']
+    const allowedStatuses = ['pending', 'paid', 'failed', 'shipped', 'out_for_delivery', 'delivered', 'cancelled']
     if (!allowedStatuses.includes(status)) {
       return NextResponse.json({ error: 'Invalid status value' }, { status: 400 })
     }

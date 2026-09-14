@@ -1,13 +1,14 @@
 "use client"
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Clock, CheckCircle2, XCircle, Package, Truck, Loader2,
   ChevronDown, ChevronRight, Search, MapPin, Phone, ShoppingBag,
   Send, X, Printer, ExternalLink, RefreshCw, AlertTriangle,
-  Navigation, PackageCheck, Ban
+  Navigation, PackageCheck, Ban, Wifi, WifiOff, PackageSearch
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
 interface OrderItem {
   id: string
@@ -67,6 +68,8 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
   const [orders, setOrders] = useState<Order[]>(initialOrders)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
+  const [liveStatus, setLiveStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting')
+  const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null)
 
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState('all')
@@ -75,11 +78,46 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
   // Dispatch modal
   const [dispatchOrder, setDispatchOrder] = useState<Order | null>(null)
   const [dispatchWeightKg, setDispatchWeightKg] = useState('0.5')
+  const [dispatchLength, setDispatchLength] = useState('15')
+  const [dispatchWidth, setDispatchWidth] = useState('10')
+  const [dispatchHeight, setDispatchHeight] = useState('5')
   const [dispatching, setDispatching] = useState(false)
   const [dispatchError, setDispatchError] = useState<string | null>(null)
   const [dispatchSuccess, setDispatchSuccess] = useState<string | null>(null)
 
   const router = useRouter()
+
+  // ── Supabase Realtime: auto-refresh orders table ─────────────────────────────
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel('retail_orders_live')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'retail_orders' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            // New order placed — refresh the page data
+            setNewOrderAlert(`New order received!`)
+            setTimeout(() => setNewOrderAlert(null), 6000)
+            router.refresh()
+          } else if (payload.eventType === 'UPDATE') {
+            // Status update (e.g. from Shadowfax webhook) — update in-place
+            setOrders(prev => prev.map(o =>
+              o.id === payload.new.id ? { ...o, ...payload.new } : o
+            ))
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') setLiveStatus('connected')
+        else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') setLiveStatus('disconnected')
+        else setLiveStatus('connecting')
+      })
+
+    return () => { supabase.removeChannel(channel) }
+  }, [router])
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount)
@@ -118,7 +156,11 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
       const res = await fetch('/api/admin/shadowfax/dispatch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: dispatchOrder.id, weightKg: parseFloat(dispatchWeightKg) }),
+        body: JSON.stringify({ 
+          orderId: dispatchOrder.id, 
+          weightKg: parseFloat(dispatchWeightKg),
+          dimensions: `${dispatchLength}x${dispatchWidth}x${dispatchHeight}`
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setDispatchError(data.error || 'Dispatch failed.'); return }
@@ -132,6 +174,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
     finally { setDispatching(false) }
   }
 
+  // Used for rendering the status pill
   const openShippingLabel = (orderId: string) => {
     window.open(`/api/admin/shipping-label?orderId=${orderId}`, '_blank')
   }
@@ -144,6 +187,16 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
     { value: 'delivered', label: 'Delivered', icon: PackageCheck, colorClass: 'bg-green-100 text-green-800' },
     { value: 'failed', label: 'Failed', icon: XCircle, colorClass: 'bg-red-100 text-red-800' },
     { value: 'cancelled', label: 'Cancelled', icon: Ban, colorClass: 'bg-gray-100 text-gray-800' },
+  ]
+
+  // Used for the top filter tabs
+  const tabOptions = [
+    { value: 'all', label: 'All Orders', icon: PackageSearch },
+    { value: 'to_dispatch', label: 'Action Required', icon: Truck },
+    { value: 'awaiting_payment', label: 'Awaiting Payment', icon: Clock },
+    { value: 'shipped', label: 'Shipped / Out for Delivery', icon: Navigation },
+    { value: 'delivered', label: 'Delivered', icon: PackageCheck },
+    { value: 'failed_cancelled', label: 'Failed / Cancelled', icon: Ban },
   ]
 
   const getStatusStyles = (statusValue: string) =>
@@ -176,22 +229,49 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
     return result
   }, [orders, dateFilter, searchQuery])
 
-  const filteredOrders = useMemo(() =>
-    activeTab === 'all' ? baseFilteredOrders : baseFilteredOrders.filter(o => o.status === activeTab),
-    [baseFilteredOrders, activeTab])
+  const filteredOrders = useMemo(() => {
+    if (activeTab === 'all') return baseFilteredOrders;
+    
+    return baseFilteredOrders.filter(o => {
+      if (activeTab === 'to_dispatch') return (o.status === 'pending' && o.payment_method === 'cod') || o.status === 'paid'
+      if (activeTab === 'awaiting_payment') return o.status === 'pending' && o.payment_method !== 'cod'
+      if (activeTab === 'shipped') return o.status === 'shipped' || o.status === 'out_for_delivery'
+      if (activeTab === 'delivered') return o.status === 'delivered'
+      if (activeTab === 'failed_cancelled') return o.status === 'failed' || o.status === 'cancelled'
+      return false
+    })
+  }, [baseFilteredOrders, activeTab])
 
-  const tabs = [{ value: 'all', label: 'All Orders' }, ...statusOptions]
+  const tabs = tabOptions
 
   return (
     <div className="space-y-6">
 
+      {/* New Order Alert Banner */}
+      {newOrderAlert && (
+        <div className="flex items-center gap-3 px-5 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 font-medium text-sm">
+          <Package size={16} className="text-emerald-600 shrink-0" />
+          <span>🎉 {newOrderAlert} The table has been refreshed.</span>
+        </div>
+      )}
+
       {/* Filter Header */}
       <div className="bg-white p-4 shadow-sm ring-1 ring-gray-900/5 sm:rounded-xl space-y-4">
         <div className="flex flex-col sm:flex-row gap-4 justify-between">
-          <div className="relative flex-1 max-w-md">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-              <Search className="h-4 w-4 text-gray-400" />
+          <div className="flex items-center gap-3 flex-1">
+            {/* Live Connection Status */}
+            <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${
+              liveStatus === 'connected' ? 'bg-emerald-50 text-emerald-700' :
+              liveStatus === 'disconnected' ? 'bg-red-50 text-red-700' :
+              'bg-amber-50 text-amber-700'
+            }`}>
+              {liveStatus === 'connected' ? <Wifi size={12} /> : liveStatus === 'disconnected' ? <WifiOff size={12} /> : <Loader2 size={12} className="animate-spin" />}
+              {liveStatus === 'connected' ? 'Live' : liveStatus === 'disconnected' ? 'Offline' : 'Connecting'}
             </div>
+            <div className="relative flex-1 max-w-md">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <Search className="h-4 w-4 text-gray-400" />
+              </div>
             <input
               type="text"
               placeholder="Search by ID, name, email, phone or AWB..."
@@ -199,6 +279,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
               onChange={e => setSearchQuery(e.target.value)}
               className="block w-full rounded-md border-0 py-1.5 pl-10 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-black sm:text-sm sm:leading-6"
             />
+            </div>
           </div>
           <select
             value={dateFilter}
@@ -214,15 +295,22 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
         </div>
         <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
           {tabs.map(tab => {
-            const count = tab.value === 'all' ? baseFilteredOrders.length : baseFilteredOrders.filter(o => o.status === tab.value).length
+            let count = 0
+            if (tab.value === 'all') count = baseFilteredOrders.length
+            else if (tab.value === 'to_dispatch') count = baseFilteredOrders.filter(o => (o.status === 'pending' && o.payment_method === 'cod') || o.status === 'paid').length
+            else if (tab.value === 'awaiting_payment') count = baseFilteredOrders.filter(o => o.status === 'pending' && o.payment_method !== 'cod').length
+            else if (tab.value === 'shipped') count = baseFilteredOrders.filter(o => o.status === 'shipped' || o.status === 'out_for_delivery').length
+            else if (tab.value === 'delivered') count = baseFilteredOrders.filter(o => o.status === 'delivered').length
+            else if (tab.value === 'failed_cancelled') count = baseFilteredOrders.filter(o => o.status === 'failed' || o.status === 'cancelled').length
+
             return (
               <button
                 key={tab.value}
                 onClick={() => setActiveTab(tab.value)}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === tab.value ? 'bg-black text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === tab.value ? 'bg-black text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'} ${tab.value === 'to_dispatch' && activeTab !== 'to_dispatch' && count > 0 ? 'ring-2 ring-red-500 ring-offset-1' : ''}`}
               >
                 {tab.label}
-                <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs ${activeTab === tab.value ? 'bg-gray-800 text-gray-200' : 'bg-gray-200 text-gray-600'}`}>{count}</span>
+                <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs ${activeTab === tab.value ? 'bg-gray-800 text-gray-200' : 'bg-gray-200 text-gray-600'} ${tab.value === 'to_dispatch' && count > 0 ? '!bg-red-500 !text-white' : ''}`}>{count}</span>
               </button>
             )
           })}
@@ -370,7 +458,9 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                                       </>
                                     ) : (
                                       <p className="text-xs text-gray-400 mt-0.5">
-                                        {['paid', 'shipped'].includes(order.status) ? 'Ready to dispatch — click the button to generate AWB' : `Order must be "Paid" to dispatch (currently: ${order.status})`}
+                                        { ['pending', 'processing', 'paid', 'shipped'].includes(order.status)
+                                          ? 'Ready to dispatch — click the button to generate AWB' 
+                                          : `Order cannot be dispatched in current status: ${order.status}`}
                                       </p>
                                     )}
                                   </div>
@@ -398,7 +488,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                                       </a>
                                     </>
                                   )}
-                                  {!order.awb_number && ['paid', 'shipped'].includes(order.status) && (
+                                  {!order.awb_number && ['pending', 'processing', 'paid', 'shipped'].includes(order.status) && (
                                     <button
                                       onClick={e => { e.stopPropagation(); setDispatchOrder(order); setDispatchError(null); setDispatchSuccess(null) }}
                                       className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition-colors shadow-md shadow-blue-200"
@@ -536,20 +626,37 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                     })()}
                   </div>
 
-                  {/* Weight Input */}
+                  {/* Weight & Dimensions Input */}
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Package Weight (kg)</label>
-                    <div className="relative">
-                      <input
-                        type="number" step="0.1" min="0.1"
-                        value={dispatchWeightKg}
-                        onChange={e => setDispatchWeightKg(e.target.value)}
-                        className="block w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 pr-12"
-                        placeholder="0.5"
-                      />
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-semibold">kg</span>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">Package Weight & Dimensions</label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Weight (kg)</label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0.1"
+                            value={dispatchWeightKg}
+                            onChange={(e) => setDispatchWeightKg(e.target.value)}
+                            className="block w-full rounded-lg border-gray-300 py-3 px-4 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                            placeholder="0.5"
+                          />
+                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                            <span className="text-gray-500 sm:text-sm">kg</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Dimensions L×W×H (cm)</label>
+                        <div className="flex gap-2">
+                          <input type="number" value={dispatchLength} onChange={e => setDispatchLength(e.target.value)} className="block w-full rounded-lg border-gray-300 py-3 px-2 text-center text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="L" />
+                          <input type="number" value={dispatchWidth} onChange={e => setDispatchWidth(e.target.value)} className="block w-full rounded-lg border-gray-300 py-3 px-2 text-center text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="W" />
+                          <input type="number" value={dispatchHeight} onChange={e => setDispatchHeight(e.target.value)} className="block w-full rounded-lg border-gray-300 py-3 px-2 text-center text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="H" />
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-400 mt-1">Default 0.5 kg. Enter the actual package weight.</p>
+                    <p className="mt-2 text-sm text-gray-500">Enter the actual package weight and dimensions.</p>
                   </div>
 
                   {/* Warning for COD */}

@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { Users, Clock, PhoneCall, CheckCircle2, XCircle } from 'lucide-react'
+import { Users, Clock, PhoneCall, CheckCircle2, XCircle, ShoppingBag, IndianRupee, Package, Truck } from 'lucide-react'
 
 const STATUS_CONFIG = {
   new:       { label: 'New',       color: 'bg-blue-50 text-blue-700 border-blue-200',   icon: Users },
@@ -10,6 +10,21 @@ const STATUS_CONFIG = {
 
 export default async function AdminDashboard() {
   const supabase = await createClient()
+
+  // Get retail orders stats
+  const { data: orders } = await supabase
+    .from('retail_orders')
+    .select('status, total_amount, created_at')
+
+  const today = new Date().toDateString()
+  const orderStats = {
+    total: orders?.length ?? 0,
+    todayCount: orders?.filter(o => new Date(o.created_at).toDateString() === today).length ?? 0,
+    revenue: orders?.reduce((sum, o) => sum + Number(o.total_amount || 0), 0) ?? 0,
+    pending: orders?.filter(o => o.status === 'pending' || o.status === 'paid').length ?? 0,
+    shipped: orders?.filter(o => o.status === 'shipped' || o.status === 'out_for_delivery').length ?? 0,
+    delivered: orders?.filter(o => o.status === 'delivered').length ?? 0,
+  }
 
   // Get lead counts per status
   const { data: leads } = await supabase
@@ -36,9 +51,30 @@ export default async function AdminDashboard() {
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out">
       <div className="mb-10">
         <h1 className="text-3xl font-semibold text-[#1d1d1f] tracking-tight">Overview</h1>
-        <p className="text-[#86868b] text-[15px] mt-1.5 font-medium">Your lead pipeline at a glance.</p>
+        <p className="text-[#86868b] text-[15px] mt-1.5 font-medium">Your store at a glance.</p>
       </div>
 
+      {/* Retail Orders Stats */}
+      <h2 className="text-[13px] font-bold text-[#86868b] uppercase tracking-widest mb-4">Retail Orders</h2>
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-5 mb-10">
+        {[
+          { label: 'Total Revenue', value: `₹${orderStats.revenue.toLocaleString('en-IN')}`, icon: IndianRupee, color: 'from-emerald-500/10 to-green-500/10 text-emerald-600 ring-emerald-500/20' },
+          { label: "Today's Orders", value: orderStats.todayCount, icon: ShoppingBag, color: 'from-[#e3231c]/10 to-orange-500/10 text-[#e3231c] ring-[#e3231c]/20' },
+          { label: 'In Transit', value: orderStats.shipped, icon: Truck, color: 'from-blue-500/10 to-cyan-500/10 text-blue-600 ring-blue-500/20' },
+          { label: 'Delivered', value: orderStats.delivered, icon: Package, color: 'from-violet-500/10 to-purple-500/10 text-violet-600 ring-violet-500/20' },
+        ].map((stat) => (
+          <div key={stat.label} className="bg-white/60 backdrop-blur-xl rounded-[24px] border border-white shadow-[0_4px_24px_-8px_rgba(0,0,0,0.05)] p-6 transition-transform hover:-translate-y-1 hover:shadow-[0_8px_30px_-8px_rgba(0,0,0,0.08)] duration-300">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-5 bg-gradient-to-br ring-1 ring-inset ${stat.color}`}>
+              <stat.icon size={22} />
+            </div>
+            <div className="text-[36px] font-semibold tracking-tighter text-[#1d1d1f] leading-none mb-2">{stat.value}</div>
+            <div className="text-[13px] font-semibold text-[#86868b] uppercase tracking-wider">{stat.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Lead Pipeline Stats */}
+      <h2 className="text-[13px] font-bold text-[#86868b] uppercase tracking-widest mb-4">B2B Lead Pipeline</h2>
       {/* Stats grid */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-5 mb-12">
         {[

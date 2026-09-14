@@ -95,6 +95,20 @@ export async function GET(req: NextRequest) {
     .awb-bar .awb-label { font-size: 10px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; opacity: 0.85; }
     .awb-bar .awb-value { font-size: 22px; font-weight: 900; font-family: monospace; letter-spacing: 2px; }
     .awb-bar .sfx { font-size: 11px; font-weight: 600; opacity: 0.7; margin-top: 2px; text-align: right;}
+    .package-info-bar {
+      background: #f5f5f7;
+      border-bottom: 1px solid #e5e5ea;
+      padding: 10px 24px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 700;
+      color: #1d1d1f;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .package-info-bar div { display: flex; gap: 20px; }
+    .package-info-bar span { color: #86868b; margin-right: 4px; }
     .body { padding: 24px; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 20px; }
     .section-title {
@@ -137,12 +151,13 @@ export async function GET(req: NextRequest) {
       align-items: center;
     }
     .footer p { font-size: 11px; color: #86868b; }
-    .barcode {
-      font-family: monospace;
-      font-size: 28px;
-      letter-spacing: 4px;
-      color: #1d1d1f;
-      opacity: 0.15;
+    .barcode-container {
+      text-align: center;
+      margin-top: -10px;
+    }
+    .barcode-container svg {
+      max-width: 100%;
+      height: 60px;
     }
   </style>
 </head>
@@ -176,6 +191,18 @@ export async function GET(req: NextRequest) {
       </div>
     </div>
 
+    <!-- Package Info -->
+    <div class="package-info-bar">
+      <div>
+        <div><span>WT:</span> ${typeof addr === 'object' && addr.package_weight ? addr.package_weight : '0.5'} KG</div>
+        <div><span>DIM:</span> ${typeof addr === 'object' && addr.package_dimensions ? addr.package_dimensions : '15x10x5'} CM</div>
+      </div>
+      <div>
+        <div><span>SVC:</span> E-COMMERCE SURFACE</div>
+        <div><span>RTG:</span> DEL</div>
+      </div>
+    </div>
+
     <!-- Body -->
     <div class="body">
       <div class="row">
@@ -195,8 +222,10 @@ export async function GET(req: NextRequest) {
           <div class="section-title">🏭 Ship From (Return Address)</div>
           <div class="address-block">
             <p class="name">Outflank Warehouse</p>
-            <p>Delhi, India</p>
-            <p>PIN: 110001</p>
+            <p>T-513/1, Gali Dargah Wali</p>
+            <p>Chamelian Road, Near Fire Station</p>
+            <p>Rani Jhansi Road, New Delhi</p>
+            <p style="font-weight:700;">PIN: 110006</p>
             <p style="margin-top:12px;">
               <span class="payment-badge ${order.payment_method === 'cod' ? 'cod' : 'prepaid'}">
                 ${order.payment_method === 'cod' ? '💵 Cash on Delivery' : '✅ Prepaid'}
@@ -228,9 +257,26 @@ export async function GET(req: NextRequest) {
     <!-- Footer -->
     <div class="footer">
       <p>Dispatched: ${order.dispatched_at ? new Date(order.dispatched_at).toLocaleString('en-IN') : 'Pending'} &nbsp;|&nbsp; Order Date: ${new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-      <div class="barcode">${order.awb_number || '— — — — —'}</div>
+      <div class="barcode-container">
+        <svg id="barcode"></svg>
+      </div>
     </div>
   </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <script>
+    const awb = "${order.awb_number || ''}";
+    if (awb) {
+      JsBarcode("#barcode", awb, {
+        format: "CODE128",
+        width: 2,
+        height: 50,
+        displayValue: false,
+        lineColor: "#1d1d1f",
+        background: "transparent"
+      });
+    }
+  </script>
 </body>
 </html>`
 

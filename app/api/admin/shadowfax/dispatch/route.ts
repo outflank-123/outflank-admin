@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 
 const SHADOWFAX_BASE_URL = process.env.SHADOWFAX_BASE_URL || 'https://dale.staging.shadowfax.in/api'
 const SHADOWFAX_API_TOKEN = process.env.SHADOWFAX_API_TOKEN || ''
 
-const supabase = createClient(
+const supabaseAdmin = createServiceClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
@@ -25,14 +26,22 @@ function sfxHeaders() {
  */
 export async function POST(req: NextRequest) {
   try {
-    const { orderId, weightKg = 0.5 } = await req.json()
+    // Auth Check
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { orderId, weightKg = 0.5, dimensions = '15x10x5' } = await req.json()
 
     if (!orderId) {
       return NextResponse.json({ error: 'orderId is required' }, { status: 400 })
     }
 
-    // Fetch the full order from Supabase
-    const { data: order, error: fetchError } = await supabase
+    // Fetch the full order from Supabase using Service Role
+    const { data: order, error: fetchError } = await supabaseAdmin
       .from('retail_orders')
       .select('*, retail_order_items(product_name, quantity)')
       .eq('id', orderId)
@@ -52,7 +61,7 @@ export async function POST(req: NextRequest) {
       try { 
         addr = JSON.parse(addr) 
       } catch {
-        const match = addr.match(/-?\\s*(\\d{6})$/)
+        const match = addr.match(/-?\s*(\d{6})$/)
         const pincode = match ? match[1] : '110001'
         addr = { addressLine1: addr, city: 'Unknown', state: 'Unknown', pincode }
       }
@@ -63,6 +72,10 @@ export async function POST(req: NextRequest) {
       .join(', ') || 'Outflank Product'
 
     // Build Shadowfax warehouse model payload
+    const isStaging = (process.env.SHADOWFAX_BASE_URL || '').includes('staging');
+    const customerPincode = isStaging ? '110001' : String(addr?.pincode || '110001');
+    const warehousePincode = isStaging ? '110001' : '110006';
+
     const sfxBody = {
       order_details: {
         client_order_id: orderId,
@@ -76,27 +89,28 @@ export async function POST(req: NextRequest) {
         address_line_1: addr?.addressLine1 || addr?.address || (typeof addr === 'string' ? addr : 'N/A'),
         city: addr?.city || 'Delhi',
         state: addr?.state || 'Delhi',
-        pincode: String(addr?.pincode || '110001'),
+        pincode: customerPincode,
       },
       pickup_details: {
         name: 'Outflank Warehouse',
-        contact: '9999999999',
-        address_line_1: 'Outflank Warehouse, Delhi',
-        city: 'Delhi',
+        contact: '9999926273',
+        address_line_1: 'T-513/1, Gali Dargah Wali, Chamelian Road, Near Fire Station, Rani Jhansi Road',
+        city: 'New Delhi',
         state: 'Delhi',
-        pincode: '110001',
+        pincode: warehousePincode,
       },
       return_details: {
         return_type: 'origin',
         name: 'Outflank Warehouse',
-        contact: '9999999999',
-        address_line_1: 'Outflank Warehouse, Delhi',
-        city: 'Delhi',
+        contact: '9999926273',
+        address_line_1: 'T-513/1, Gali Dargah Wali, Chamelian Road, Near Fire Station, Rani Jhansi Road',
+        city: 'New Delhi',
         state: 'Delhi',
-        pincode: '110001',
+        pincode: '110001', // Changed for staging (original: 110006)
       },
       product_details: [{
         name: productSummary,
+        sku_name: productSummary,
         quantity: 1,
         price: Number(order.total_amount),
         weight: weightKg,
@@ -112,26 +126,52 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify(sfxBody),
     })
 
-    const sfxData = await sfxRes.json()
-    console.log('[Shadowfax Dispatch] Response:', JSON.stringify(sfxData, null, 2))
-
-    if (!sfxRes.ok) {
+    const rawText = await sfxRes.text();
+    let sfxData;
+    try {
+      sfxData = JSON.parse(rawText);
+    } catch (e) {
+      console.error('[Shadowfax Dispatch] Non-JSON response from Shadowfax:', rawText);
       return NextResponse.json(
-        { error: sfxData?.message || 'Shadowfax API error', details: sfxData },
-        { status: sfxRes.status }
+        { error: 'Invalid response from Shadowfax. It may be offline.', details: rawText.substring(0, 200) },
+        { status: 502 }
       )
     }
 
-    const awbNumber = sfxData?.awb_number || sfxData?.data?.awb_number
+    console.log('[Shadowfax Dispatch] Response:', JSON.stringify(sfxData, null, 2))
+
+    if (!sfxRes.ok || sfxData?.message === 'Failure' || sfxData?.errors) {
+      const errorMessage = sfxData?.errors ? JSON.stringify(sfxData.errors) : (sfxData?.message || sfxData?.detail || 'Shadowfax API error');
+      return NextResponse.json(
+        { error: errorMessage, details: sfxData },
+        { status: sfxRes.ok ? 400 : sfxRes.status }
+      )
+    }
+
+    const awbNumber = sfxData?.data?.awb_number || sfxData?.awb_number
+
+    if (!awbNumber) {
+      return NextResponse.json(
+        { error: 'Shadowfax API succeeded but returned no AWB number.', details: sfxData },
+        { status: 500 }
+      )
+    }
+
+    // Add weight and dimensions to the shipping_address JSON so the label printer can read it
+    let updatedAddress = addr
+    if (typeof updatedAddress === 'object') {
+      updatedAddress = { ...updatedAddress, package_weight: weightKg, package_dimensions: dimensions }
+    }
 
     // Save AWB number and update order status to 'shipped'
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
       .from('retail_orders')
       .update({
         awb_number: awbNumber,
         shadowfax_order_id: orderId,
         shadowfax_status: 'new',
         status: 'shipped',
+        shipping_address: typeof updatedAddress === 'object' ? JSON.stringify(updatedAddress) : updatedAddress,
         dispatched_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })

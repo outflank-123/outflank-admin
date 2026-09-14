@@ -1,15 +1,18 @@
 import AdminSidebar from './AdminSidebar'
 import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  let role = 'admin'
-  if (user) {
-    const { data } = await supabase.from('admin_profiles').select('role').eq('id', user.id).single()
-    if (data?.role) role = data.role
+  if (!user) {
+    redirect('/login')
   }
+
+  let role = 'admin'
+  const { data } = await supabase.from('admin_profiles').select('role').eq('id', user.id).single()
+  if (data?.role) role = data.role
 
   return (
     <div className="h-screen bg-[#fbfbfd] flex selection:bg-[#e3231c]/20 overflow-hidden">
