@@ -1148,7 +1148,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
                     </div>
 
                     <div className="flex flex-col text-right">
-                      <span className="text-[10px] uppercase font-bold text-[#86868b] tracking-wider">MOQ</span>
+                      <span className="text-[10px] uppercase font-bold text-[#86868b] tracking-wider">MOQ (Int.)</span>
                       <span className="text-[13px] font-bold text-[#1d1d1f]">{prod.min_order_qty || 50} units</span>
                     </div>
                   </div>
@@ -1256,9 +1256,10 @@ export default function ProductsClient({ initialProducts, categories }: Products
                   <th
                     onClick={() => handleHeaderSort('moq')}
                     className="py-3.5 px-4 cursor-pointer hover:text-[#1d1d1f] group transition-colors min-w-[95px]"
+                    title="Internal minimum benchmark. Client storefront shows Quote on Inquiry."
                   >
                     <div className="flex items-center gap-1">
-                      <span>MOQ</span>
+                      <span>MOQ (Int.)</span>
                       {renderSortIndicator('moq')}
                     </div>
                   </th>
@@ -1266,9 +1267,10 @@ export default function ProductsClient({ initialProducts, categories }: Products
                   <th
                     onClick={() => handleHeaderSort('lead')}
                     className="py-3.5 px-4 cursor-pointer hover:text-[#1d1d1f] group transition-colors min-w-[105px]"
+                    title="Internal production timeline benchmark."
                   >
                     <div className="flex items-center gap-1">
-                      <span>Lead Time</span>
+                      <span>Lead Time (Int.)</span>
                       {renderSortIndicator('lead')}
                     </div>
                   </th>
@@ -2065,9 +2067,14 @@ export default function ProductsClient({ initialProducts, categories }: Products
 
                       {/* Minimum Order Quantity (MOQ) */}
                       <div>
-                        <label className="block text-[12px] font-bold uppercase tracking-wider text-[#86868b] mb-1.5">
-                          Min. Order Qty (MOQ)
-                        </label>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-[12px] font-bold uppercase tracking-wider text-[#86868b]">
+                            Min. Order Qty (Internal Reference)
+                          </label>
+                          <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            Negotiable on Inquiry
+                          </span>
+                        </div>
                         <input
                           type="number"
                           min="1"
@@ -2075,14 +2082,19 @@ export default function ProductsClient({ initialProducts, categories }: Products
                           onChange={(e) => setFormData({ ...formData, min_order_qty: Math.max(1, parseInt(e.target.value) || 1) })}
                           className="w-full px-4 py-2.5 rounded-xl bg-white border border-black/10 text-[14px] font-bold text-[#1d1d1f] focus:outline-none focus:ring-4 focus:ring-[#e3231c]/10 focus:border-[#e3231c]/30"
                         />
-                        <p className="text-[11px] text-[#86868b] mt-1">Default minimum unit count for bulk gifting orders.</p>
+                        <p className="text-[11px] text-[#86868b] mt-1">Internal benchmark for factory planning. Storefront displays &ldquo;Quote on Inquiry&rdquo; so you can negotiate directly.</p>
                       </div>
 
                       {/* Lead Time Days */}
                       <div>
-                        <label className="block text-[12px] font-bold uppercase tracking-wider text-[#86868b] mb-1.5">
-                          Lead Time (Days)
-                        </label>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-[12px] font-bold uppercase tracking-wider text-[#86868b]">
+                            Lead Time Days (Internal Reference)
+                          </label>
+                          <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            Negotiable on Inquiry
+                          </span>
+                        </div>
                         <input
                           type="number"
                           min="1"
@@ -2090,7 +2102,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
                           onChange={(e) => setFormData({ ...formData, lead_time_days: Math.max(1, parseInt(e.target.value) || 1) })}
                           className="w-full px-4 py-2.5 rounded-xl bg-white border border-black/10 text-[14px] font-bold text-[#1d1d1f] focus:outline-none focus:ring-4 focus:ring-[#e3231c]/10 focus:border-[#e3231c]/30"
                         />
-                        <p className="text-[11px] text-[#86868b] mt-1">Estimated production & dispatch timeline.</p>
+                        <p className="text-[11px] text-[#86868b] mt-1">Internal benchmark timeline. Storefront displays flexible timeline on inquiry.</p>
                       </div>
                     </div>
 
