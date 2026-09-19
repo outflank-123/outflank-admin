@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, verifyAdmin } from '@/lib/supabase/server'
+import { sendOrderDeliveredNotification } from '@/lib/services/whatsapp'
 
 export async function POST(req: Request) {
   try {
@@ -75,6 +76,22 @@ export async function POST(req: Request) {
     if (error) {
       console.error('Error updating order status:', error)
       return NextResponse.json({ error: 'Failed to update order status' }, { status: 500 })
+    }
+
+    // Trigger WhatsApp notification if marked as delivered
+    if (status === 'delivered') {
+      try {
+        const { data: fullOrder } = await supabase
+          .from('retail_orders')
+          .select('*')
+          .eq('id', orderId)
+          .single()
+        if (fullOrder) {
+          sendOrderDeliveredNotification({ order: fullOrder })
+        }
+      } catch (waErr) {
+        console.error('[Status API] WhatsApp delivery notification non-fatal error:', waErr)
+      }
     }
 
     return NextResponse.json({ success: true })

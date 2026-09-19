@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { createClient, verifyAdmin } from '@/lib/supabase/server'
+import { sendOrderShippedNotification } from '@/lib/services/whatsapp'
 
 const SHADOWFAX_BASE_URL = process.env.SHADOWFAX_BASE_URL || 'https://dale.staging.shadowfax.in/api'
 const SHADOWFAX_API_TOKEN = process.env.SHADOWFAX_API_TOKEN || ''
@@ -179,6 +180,17 @@ export async function POST(req: NextRequest) {
     if (updateError) {
       console.error('[Shadowfax Dispatch] Supabase update error:', updateError)
       return NextResponse.json({ error: 'Order dispatched but DB update failed', awb_number: awbNumber }, { status: 500 })
+    }
+
+    // Trigger automated WhatsApp notification to customer (non-blocking)
+    try {
+      sendOrderShippedNotification({
+        order,
+        awbNumber,
+        courierName: 'Shadowfax Surface Express',
+      })
+    } catch (waErr) {
+      console.error('[Shadowfax Dispatch] WhatsApp notification non-fatal error:', waErr)
     }
 
     return NextResponse.json({

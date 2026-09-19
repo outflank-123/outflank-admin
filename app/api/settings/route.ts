@@ -24,10 +24,26 @@ export async function GET() {
         cod_min_amount: 500,
         free_shipping_threshold: 2000,
         flat_shipping_rate: 100,
+        whatsapp_support_phone: '919999926273',
+        whatsapp_admin_alerts_phone: '919999926273',
+        whatsapp_notifications_enabled: false,
+        whatsapp_provider: 'meta_cloud',
+        whatsapp_phone_number_id: '',
+        whatsapp_business_account_id: '',
+        whatsapp_access_token: '',
       })
     }
 
-    return NextResponse.json(data)
+    return NextResponse.json({
+      ...data,
+      whatsapp_support_phone: data.whatsapp_support_phone || '919999926273',
+      whatsapp_admin_alerts_phone: data.whatsapp_admin_alerts_phone || '919999926273',
+      whatsapp_notifications_enabled: Boolean(data.whatsapp_notifications_enabled),
+      whatsapp_provider: data.whatsapp_provider || 'meta_cloud',
+      whatsapp_phone_number_id: data.whatsapp_phone_number_id || '',
+      whatsapp_business_account_id: data.whatsapp_business_account_id || '',
+      whatsapp_access_token: data.whatsapp_access_token || '',
+    })
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 })
@@ -55,36 +71,51 @@ export async function PUT(req: Request) {
     }
 
     const body = await req.json()
-    const { is_cod_enabled, cod_min_amount, free_shipping_threshold, flat_shipping_rate } = body
+    const { 
+      is_cod_enabled, 
+      cod_min_amount, 
+      free_shipping_threshold, 
+      flat_shipping_rate,
+      whatsapp_support_phone,
+      whatsapp_admin_alerts_phone,
+      whatsapp_notifications_enabled,
+      whatsapp_provider,
+      whatsapp_phone_number_id,
+      whatsapp_business_account_id,
+      whatsapp_access_token,
+    } = body
+
+    const updatePayload: any = {
+      is_cod_enabled,
+      cod_min_amount,
+      free_shipping_threshold,
+      flat_shipping_rate,
+      updated_at: new Date().toISOString()
+    }
+
+    if (whatsapp_support_phone !== undefined) updatePayload.whatsapp_support_phone = whatsapp_support_phone
+    if (whatsapp_admin_alerts_phone !== undefined) updatePayload.whatsapp_admin_alerts_phone = whatsapp_admin_alerts_phone
+    if (whatsapp_notifications_enabled !== undefined) updatePayload.whatsapp_notifications_enabled = Boolean(whatsapp_notifications_enabled)
+    if (whatsapp_provider !== undefined) updatePayload.whatsapp_provider = whatsapp_provider
+    if (whatsapp_phone_number_id !== undefined) updatePayload.whatsapp_phone_number_id = whatsapp_phone_number_id
+    if (whatsapp_business_account_id !== undefined) updatePayload.whatsapp_business_account_id = whatsapp_business_account_id
+    if (whatsapp_access_token !== undefined) updatePayload.whatsapp_access_token = whatsapp_access_token
 
     // We expect exactly one row to exist or we update all rows since there should only be one
     const { data: existingRows } = await supabase.from('store_settings').select('id').limit(1)
 
     let result
     if (existingRows && existingRows.length > 0) {
-      // Update existing
       result = await supabase
         .from('store_settings')
-        .update({
-          is_cod_enabled,
-          cod_min_amount,
-          free_shipping_threshold,
-          flat_shipping_rate,
-          updated_at: new Date().toISOString()
-        })
+        .update(updatePayload)
         .eq('id', existingRows[0].id)
         .select()
         .single()
     } else {
-      // Insert new if it somehow doesn't exist
       result = await supabase
         .from('store_settings')
-        .insert([{
-          is_cod_enabled,
-          cod_min_amount,
-          free_shipping_threshold,
-          flat_shipping_rate
-        }])
+        .insert([updatePayload])
         .select()
         .single()
     }

@@ -154,6 +154,32 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
   const [invoiceModalOrder, setInvoiceModalOrder] = useState<Order | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [lightboxImage, setLightboxImage] = useState<{ url: string; title: string } | null>(null)
+  const [activeWhatsAppMenu, setActiveWhatsAppMenu] = useState<string | null>(null)
+
+  const getWhatsAppTemplateUrl = (type: 'direct' | 'tracking' | 'artwork' | 'invoice', order: Order) => {
+    const phone = order.customer_phone ? order.customer_phone.replace(/\D/g, '') : ''
+    const formattedPhone = phone.length === 10 ? `91${phone}` : phone
+    const shortId = order.id ? order.id.slice(0, 8).toUpperCase() : ''
+    const customerName = order.customer_name || 'Customer'
+    const awb = order.awb_number || ''
+
+    let text = ''
+    if (type === 'direct') {
+      text = `Hi ${customerName}, contacting you from Outflank regarding your Order #${shortId}. How can we assist you today?`
+    } else if (type === 'tracking') {
+      if (awb) {
+        text = `Hi ${customerName}, your Outflank Order #${shortId} has been dispatched with Shadowfax! 📦\n\nTracking AWB: ${awb}\nTrack your delivery here: https://tracker.shadowfax.in/track?order_id=${awb}\n\nThank you for choosing Outflank!`
+      } else {
+        text = `Hi ${customerName}, your Outflank Order #${shortId} is currently being packed at our facility. We will share your live tracking link as soon as it departs!`
+      }
+    } else if (type === 'artwork') {
+      text = `Hi ${customerName}, regarding your custom printed merchandise Order #${shortId}: Could you please share your brand logo / design file in high-resolution vector (AI/SVG/EPS) or transparent PNG format on this chat so our design team can prepare your production mockup?`
+    } else if (type === 'invoice') {
+      text = `Hi ${customerName}, thank you for ordering with Outflank! Here is the order summary for Order #${shortId} (Total: ₹${order.total_amount?.toLocaleString('en-IN')}). If you need a formal GST tax invoice, we'd be delighted to assist you!`
+    }
+
+    return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(text)}`
+  }
 
   const downloadLogo = async (url: string, filename: string) => {
     try {
@@ -879,23 +905,93 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
 
                                     {/* Contact Actions: WhatsApp & Call */}
                                     {order.customer_phone && (
-                                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
-                                        <a
-                                          href={`https://wa.me/91${order.customer_phone.replace(/\D/g, '')}`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold transition-colors border border-emerald-200/80"
-                                        >
-                                          <MessageCircle size={13} />
-                                          <span>WhatsApp</span>
-                                        </a>
-                                        <a
-                                          href={`tel:${order.customer_phone}`}
-                                          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-colors border border-gray-200"
-                                        >
-                                          <Phone size={13} />
-                                          <span>{order.customer_phone}</span>
-                                        </a>
+                                      <div className="relative mt-3 pt-3 border-t border-gray-100">
+                                        <div className="flex items-center gap-2">
+                                          {/* Split WhatsApp Button with Templates Menu */}
+                                          <div className="flex-1 flex rounded-lg shadow-2xs border border-emerald-200/90 overflow-visible relative">
+                                            <a
+                                              href={getWhatsAppTemplateUrl('direct', order)}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold transition-colors rounded-l-lg"
+                                              title="Open direct WhatsApp chat"
+                                            >
+                                              <MessageCircle size={13} />
+                                              <span>WhatsApp</span>
+                                            </a>
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                setActiveWhatsAppMenu(activeWhatsAppMenu === order.id ? null : order.id)
+                                              }}
+                                              className="px-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition-colors border-l border-emerald-200/90 rounded-r-lg flex items-center justify-center"
+                                              title="Quick WhatsApp templates"
+                                            >
+                                              <ChevronDown size={12} className={activeWhatsAppMenu === order.id ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                                            </button>
+
+                                            {/* Dropdown Menu */}
+                                            {activeWhatsAppMenu === order.id && (
+                                              <div
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="absolute left-0 top-full mt-1 w-64 bg-white rounded-xl shadow-xl border border-gray-200 p-1.5 z-40 animate-in fade-in slide-in-from-top-1 duration-150 text-left"
+                                              >
+                                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-2 py-1">
+                                                  WhatsApp Templates
+                                                </p>
+                                                <a
+                                                  href={getWhatsAppTemplateUrl('direct', order)}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  onClick={() => setActiveWhatsAppMenu(null)}
+                                                  className="flex items-center gap-2 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-emerald-50 hover:text-emerald-800 rounded-lg transition-colors font-medium"
+                                                >
+                                                  <MessageCircle size={13} className="text-emerald-600 shrink-0" />
+                                                  <span>Direct Customer Chat</span>
+                                                </a>
+                                                <a
+                                                  href={getWhatsAppTemplateUrl('tracking', order)}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  onClick={() => setActiveWhatsAppMenu(null)}
+                                                  className="flex items-center gap-2 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-emerald-50 hover:text-emerald-800 rounded-lg transition-colors font-medium"
+                                                >
+                                                  <Truck size={13} className="text-blue-600 shrink-0" />
+                                                  <span>Send AWB Tracking Link</span>
+                                                </a>
+                                                <a
+                                                  href={getWhatsAppTemplateUrl('artwork', order)}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  onClick={() => setActiveWhatsAppMenu(null)}
+                                                  className="flex items-center gap-2 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-emerald-50 hover:text-emerald-800 rounded-lg transition-colors font-medium"
+                                                >
+                                                  <Paintbrush size={13} className="text-purple-600 shrink-0" />
+                                                  <span>Request High-Res Logo</span>
+                                                </a>
+                                                <a
+                                                  href={getWhatsAppTemplateUrl('invoice', order)}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  onClick={() => setActiveWhatsAppMenu(null)}
+                                                  className="flex items-center gap-2 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-emerald-50 hover:text-emerald-800 rounded-lg transition-colors font-medium"
+                                                >
+                                                  <FileText size={13} className="text-amber-600 shrink-0" />
+                                                  <span>Share Invoice / Order Info</span>
+                                                </a>
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          <a
+                                            href={`tel:${order.customer_phone}`}
+                                            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-colors border border-gray-200"
+                                          >
+                                            <Phone size={13} />
+                                            <span>{order.customer_phone}</span>
+                                          </a>
+                                        </div>
                                       </div>
                                     )}
                                   </div>
