@@ -5,10 +5,39 @@ import {
   Clock, CheckCircle2, XCircle, Package, Truck, Loader2,
   ChevronDown, ChevronRight, Search, MapPin, Phone, ShoppingBag,
   Send, X, Printer, ExternalLink, RefreshCw, AlertTriangle,
-  Navigation, PackageCheck, Ban, Wifi, WifiOff, PackageSearch
+  Navigation, PackageCheck, Ban, Wifi, WifiOff, PackageSearch,
+  Sparkles, Download, Copy, Check, Eye
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+
+export interface CustomizationData {
+  is_customized?: boolean
+  isCustomized?: boolean
+  brand_text?: string
+  brandText?: string
+  text?: string
+  text_color?: string
+  textColor?: string
+  logo_url?: string
+  logoUrl?: string
+  logo_storage_path?: string
+  logoStoragePath?: string
+  file_size_bytes?: number
+  fileSizeBytes?: number
+  file_size_kb?: string
+  fileSizeKb?: string
+  print_position?: string
+  printPosition?: string
+  customization_label?: string
+  customizationLabel?: string
+  asset_status?: string
+  coordinates?: {
+    left: string
+    top: string
+    width: string
+  }
+}
 
 interface OrderItem {
   id: string
@@ -17,6 +46,7 @@ interface OrderItem {
   price_at_time: number
   selected_color: string | null
   products?: any
+  customization?: CustomizationData | null
 }
 
 interface Order {
@@ -32,7 +62,38 @@ interface Order {
   awb_number?: string | null
   dispatched_at?: string | null
   shadowfax_status?: string | null
+  notes?: string | null
+  delivered_at?: string | null
+  assets_purged?: boolean | null
   retail_order_items: OrderItem[]
+}
+
+export function getItemCustomization(item: OrderItem, order: Order): CustomizationData | null {
+  if (item.customization && (item.customization.is_customized || item.customization.isCustomized || item.customization.logo_url || item.customization.logoUrl || item.customization.brand_text || item.customization.brandText)) {
+    return item.customization
+  }
+  if (order.notes) {
+    try {
+      const parsed = typeof order.notes === 'string' ? JSON.parse(order.notes) : order.notes
+      if (parsed.custom_items) {
+        const found = parsed.custom_items.find((ci: any) => ci.product_name === item.product_name)
+        if (found?.customization) return found.customization
+      }
+    } catch {}
+  }
+  if (item.selected_color && item.selected_color.includes('Custom')) {
+    const match = item.selected_color.match(/\[Custom:?\s*"?([^"\]]+)"?\]/i)
+    return {
+      is_customized: true,
+      brand_text: match ? match[1] : undefined,
+      customization_label: item.selected_color
+    }
+  }
+  return null
+}
+
+export function hasCustomItems(order: Order): boolean {
+  return order.retail_order_items?.some(item => Boolean(getItemCustomization(item, order))) || false
 }
 
 // Parse address from JSON string or object
@@ -84,6 +145,33 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
   const [dispatching, setDispatching] = useState(false)
   const [dispatchError, setDispatchError] = useState<string | null>(null)
   const [dispatchSuccess, setDispatchSuccess] = useState<string | null>(null)
+
+  // Custom Print Job Sheet & Download State
+  const [jobCardOrder, setJobCardOrder] = useState<Order | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  const downloadLogo = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const blobUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = filename || 'custom_logo.webp'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(blobUrl)
+    } catch {
+      window.open(url, '_blank')
+    }
+  }
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text)
+    setCopiedId(id)
+    setTimeout(() => setCopiedId(null), 2000)
+  }
 
   const router = useRouter()
 
@@ -192,6 +280,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
   // Used for the top filter tabs
   const tabOptions = [
     { value: 'all', label: 'All Orders', icon: PackageSearch },
+    { value: 'custom_print', label: 'Custom Print Orders', icon: Sparkles },
     { value: 'to_dispatch', label: 'Action Required', icon: Truck },
     { value: 'awaiting_payment', label: 'Awaiting Payment', icon: Clock },
     { value: 'shipped', label: 'Shipped / Out for Delivery', icon: Navigation },
@@ -233,6 +322,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
     if (activeTab === 'all') return baseFilteredOrders;
     
     return baseFilteredOrders.filter(o => {
+      if (activeTab === 'custom_print') return hasCustomItems(o)
       if (activeTab === 'to_dispatch') return (o.status === 'pending' && o.payment_method === 'cod') || o.status === 'paid'
       if (activeTab === 'awaiting_payment') return o.status === 'pending' && o.payment_method !== 'cod'
       if (activeTab === 'shipped') return o.status === 'shipped' || o.status === 'out_for_delivery'
@@ -358,7 +448,14 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                             <Package className="h-5 w-5 text-gray-500" />
                           </div>
                           <div>
-                            <div className="font-medium text-gray-900 text-xs uppercase">#{order.id.split('-')[0]}</div>
+                            <div className="font-medium text-gray-900 text-xs uppercase flex items-center gap-1.5">
+                              <span>#{order.id.split('-')[0]}</span>
+                              {hasCustomItems(order) && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-extrabold bg-blue-50 text-[#0066FF] border border-blue-200">
+                                  <Sparkles size={10} /> CUSTOM PRINT
+                                </span>
+                              )}
+                            </div>
                             <div className="text-gray-500 text-xs">{new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
                           </div>
                         </div>
@@ -526,26 +623,163 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                               </div>
 
                               <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-4">
-                                  <ShoppingBag size={13} /> Order Items
-                                </h3>
-                                <div className="space-y-3">
-                                  {order.retail_order_items?.length > 0 ? order.retail_order_items.map(item => (
-                                    <div key={item.id} className="flex gap-3 items-center pb-3 border-b border-gray-100 last:border-0 last:pb-0">
-                                      {item.products && (Array.isArray(item.products) ? item.products[0] : item.products)?.primary_image_url ? (
-                                        <img src={(Array.isArray(item.products) ? item.products[0] : item.products).primary_image_url} alt={item.product_name} className="w-11 h-11 rounded-lg object-cover border border-gray-100 flex-shrink-0" />
-                                      ) : (
-                                        <div className="w-11 h-11 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
-                                          <Package className="h-4 w-4 text-gray-300" />
+                                <div className="flex items-center justify-between mb-4">
+                                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                    <ShoppingBag size={13} /> Order Items
+                                  </h3>
+                                  {hasCustomItems(order) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setJobCardOrder(order)}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-bold hover:bg-black transition-colors cursor-pointer shadow-xs"
+                                    >
+                                      <Printer size={13} />
+                                      <span>Print Job Sheet</span>
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="space-y-4">
+                                  {order.retail_order_items?.length > 0 ? order.retail_order_items.map(item => {
+                                    const custom = getItemCustomization(item, order)
+                                    const logoUrl = custom?.logo_url || custom?.logoUrl
+                                    const brandText = custom?.brand_text || custom?.brandText || custom?.text
+                                    const textColor = custom?.text_color || custom?.textColor || '#FFFFFF'
+                                    const printPos = custom?.print_position || custom?.printPosition || 'Front Center Chest'
+                                    const isPurged = order.assets_purged || custom?.asset_status === 'purged_after_14_days'
+
+                                    return (
+                                      <div key={item.id} className="pb-4 border-b border-gray-100 last:border-0 last:pb-0 space-y-3">
+                                        <div className="flex gap-3 items-center">
+                                          {item.products && (Array.isArray(item.products) ? item.products[0] : item.products)?.primary_image_url ? (
+                                            <img src={(Array.isArray(item.products) ? item.products[0] : item.products).primary_image_url} alt={item.product_name} className="w-12 h-12 rounded-lg object-cover border border-gray-100 flex-shrink-0" />
+                                          ) : (
+                                            <div className="w-12 h-12 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
+                                              <Package className="h-5 w-5 text-gray-300" />
+                                            </div>
+                                          )}
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                              <p className="text-sm font-semibold text-gray-900 truncate">{item.product_name}</p>
+                                              {custom && (
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-[#0066FF] border border-blue-200">
+                                                  <Sparkles size={10} /> Custom Item
+                                                </span>
+                                              )}
+                                            </div>
+                                            <p className="text-xs text-gray-400">Qty: {item.quantity}{item.selected_color ? ` · ${item.selected_color}` : ''}</p>
+                                          </div>
+                                          <p className="text-sm font-bold text-gray-900 flex-shrink-0">{formatCurrency(Number(item.price_at_time) * item.quantity)}</p>
                                         </div>
-                                      )}
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-gray-900 truncate">{item.product_name}</p>
-                                        <p className="text-xs text-gray-400">Qty: {item.quantity}{item.selected_color ? ` · ${item.selected_color}` : ''}</p>
+
+                                        {/* ── Custom Print Specifications Card for Print Operators ── */}
+                                        {custom && (
+                                          <div className="bg-slate-50 rounded-xl p-3.5 border border-blue-200/70 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-[11px] font-bold uppercase tracking-wider text-[#0066FF] flex items-center gap-1">
+                                                <Sparkles size={12} /> Custom Print Specifications
+                                              </span>
+                                              <span className="text-[10px] font-medium text-gray-500">
+                                                Placement: <strong className="text-gray-900">{printPos}</strong>
+                                                {custom.coordinates && (
+                                                  <span className="ml-1 text-[9px] font-mono text-gray-400">
+                                                    ({custom.coordinates.left}, {custom.coordinates.top})
+                                                  </span>
+                                                )}
+                                              </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                              {/* Brand Text Specification */}
+                                              {brandText && (
+                                                <div className="bg-white p-2.5 rounded-lg border border-gray-200 flex flex-col justify-between gap-1.5">
+                                                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Custom Text to Print</span>
+                                                  <div className="flex items-center justify-between">
+                                                    <span className="font-bold text-sm text-gray-900 font-mono">"{brandText}"</span>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => copyToClipboard(brandText, `${item.id}-text`)}
+                                                      className="text-[10px] font-bold text-[#0066FF] hover:underline flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded"
+                                                    >
+                                                      {copiedId === `${item.id}-text` ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
+                                                    </button>
+                                                  </div>
+                                                  <div className="flex items-center gap-1.5 pt-1 text-[11px] text-gray-600">
+                                                    <span>Imprint Color:</span>
+                                                    <span className="w-3.5 h-3.5 rounded-full border border-black/20" style={{ backgroundColor: textColor }} />
+                                                    <span className="font-mono font-bold text-[10px]">{textColor}</span>
+                                                  </div>
+                                                </div>
+                                              )}
+
+                                              {/* Uploaded Logo Specification & Download */}
+                                              {logoUrl ? (
+                                                <div className="bg-white p-2.5 rounded-lg border border-gray-200 flex items-center justify-between gap-3">
+                                                  <div className="flex items-center gap-2.5">
+                                                    {/* Checkerboard contrast backdrop */}
+                                                    <div
+                                                      className="w-12 h-12 rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden shrink-0"
+                                                      style={{
+                                                        backgroundImage: 'linear-gradient(45deg, #e5e5e5 25%, transparent 25%), linear-gradient(-45deg, #e5e5e5 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e5e5 75%), linear-gradient(-45deg, transparent 75%, #e5e5e5 75%)',
+                                                        backgroundSize: '8px 8px',
+                                                        backgroundPosition: '0 0, 0 4px, 4px -4px, -4px 0'
+                                                      }}
+                                                    >
+                                                      <img src={logoUrl} alt="Logo Imprint" className="max-w-full max-h-full object-contain" />
+                                                    </div>
+                                                    <div>
+                                                      <div className="flex items-center gap-1.5">
+                                                        <span className="text-xs font-bold text-gray-900">Logo File</span>
+                                                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 bg-emerald-100 text-emerald-700 rounded-md">
+                                                          WebP &lt; 20KB
+                                                        </span>
+                                                      </div>
+                                                      <span className="text-[10px] text-gray-500 block">Vector/High-Res Print Asset</span>
+                                                    </div>
+                                                  </div>
+
+                                                  <div className="flex flex-col gap-1 shrink-0">
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => downloadLogo(logoUrl, `Order_${order.id.split('-')[0]}_logo.webp`)}
+                                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[#0066FF] hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                                                    >
+                                                      <Download size={12} />
+                                                      <span>Download Logo</span>
+                                                    </button>
+                                                    <a
+                                                      href={logoUrl}
+                                                      target="_blank"
+                                                      rel="noopener noreferrer"
+                                                      className="text-[10px] font-semibold text-gray-500 hover:text-gray-900 text-center hover:underline inline-flex items-center justify-center gap-0.5"
+                                                    >
+                                                      <Eye size={10} /> View Full
+                                                    </a>
+                                                  </div>
+                                                </div>
+                                              ) : (
+                                                <div className="bg-white p-2.5 rounded-lg border border-gray-200 flex items-center gap-2 text-xs text-gray-500">
+                                                  <span>Text Imprint Only (No logo uploaded)</span>
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            {/* 14-Day Lifecycle Status Banner */}
+                                            <div className="flex items-center justify-between text-[11px] pt-1 text-gray-500 border-t border-gray-200/60">
+                                              <span className="flex items-center gap-1">
+                                                {isPurged ? (
+                                                  <span className="text-neutral-500 font-medium">⚪ Asset safely purged per 14-day data retention policy</span>
+                                                ) : order.status === 'delivered' ? (
+                                                  <span className="text-amber-700 font-medium">🟡 Order delivered · 14-day post-delivery retention countdown active</span>
+                                                ) : (
+                                                  <span className="text-emerald-700 font-medium">🟢 Print asset active · Retained until 14 days after delivery</span>
+                                                )}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
-                                      <p className="text-sm font-bold text-gray-900 flex-shrink-0">{formatCurrency(Number(item.price_at_time) * item.quantity)}</p>
-                                    </div>
-                                  )) : <p className="text-sm text-gray-400 italic">No items.</p>}
+                                    )
+                                  }) : <p className="text-sm text-gray-400 italic">No items.</p>}
                                 </div>
                               </div>
                             </div>
@@ -693,6 +927,143 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Production Job Card Modal ─── */}
+      {jobCardOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 print:p-0" onClick={() => setJobCardOrder(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden print:w-full print:max-w-none print:shadow-none print:rounded-none" onClick={e => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="bg-gray-900 text-white px-6 py-4 flex items-center justify-between print:bg-black">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center">
+                  <Printer size={18} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-base tracking-wide uppercase">Apparel Production Job Sheet</h2>
+                  <p className="text-gray-400 text-xs font-mono">Order #{jobCardOrder.id.split('-')[0].toUpperCase()} · {new Date(jobCardOrder.created_at).toLocaleDateString()}</p>
+                </div>
+              </div>
+              <button onClick={() => setJobCardOrder(null)} className="text-gray-400 hover:text-white print:hidden">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5 text-gray-900">
+              {/* Order & Customer Summary */}
+              <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200 text-xs">
+                <div>
+                  <span className="font-bold uppercase tracking-wider text-gray-400 block mb-1">Customer / Consignee</span>
+                  <p className="font-bold text-sm text-gray-900">{jobCardOrder.customer_name}</p>
+                  <p className="text-gray-600">{jobCardOrder.customer_phone}</p>
+                  <p className="text-gray-600">{jobCardOrder.customer_email}</p>
+                </div>
+                <div>
+                  <span className="font-bold uppercase tracking-wider text-gray-400 block mb-1">Order Status</span>
+                  <p className="font-bold text-sm text-gray-900 uppercase">{jobCardOrder.status}</p>
+                  <p className="text-gray-600">Payment: {jobCardOrder.payment_method === 'cod' ? 'Cash on Delivery' : 'Prepaid (Razorpay)'}</p>
+                  {jobCardOrder.awb_number && <p className="font-mono text-blue-700">AWB: {jobCardOrder.awb_number}</p>}
+                </div>
+              </div>
+
+              {/* Garment Line Items & Custom Imprints */}
+              <div className="space-y-4">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-gray-500 border-b pb-1">Garments to Brand & Print</h4>
+                {jobCardOrder.retail_order_items.map((item, idx) => {
+                  const custom = getItemCustomization(item, jobCardOrder)
+                  const logoUrl = custom?.logo_url || custom?.logoUrl
+                  const brandText = custom?.brand_text || custom?.brandText || custom?.text
+                  const textColor = custom?.text_color || custom?.textColor || '#FFFFFF'
+
+                  return (
+                    <div key={item.id} className="border border-gray-200 rounded-xl p-4 bg-white space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="font-mono text-xs font-bold text-gray-400">ITEM #{idx + 1}</span>
+                          <h5 className="font-bold text-base text-gray-900">{item.product_name}</h5>
+                          <p className="text-xs text-gray-600 font-medium">Color: <strong>{item.selected_color || 'Standard'}</strong> · Quantity: <strong className="text-gray-900 text-sm">{item.quantity} units</strong></p>
+                        </div>
+                        <span className="px-2 py-1 rounded bg-blue-50 text-[#0066FF] border border-blue-200 text-xs font-bold uppercase">
+                          Placement: {custom?.print_position || custom?.printPosition || 'Left Chest'}
+                        </span>
+                      </div>
+
+                      {/* Imprint Artwork */}
+                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100">
+                        {brandText && (
+                          <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Text Imprint</span>
+                            <p className="font-bold text-lg font-mono text-gray-900">"{brandText}"</p>
+                            <div className="flex items-center gap-1.5 mt-1 text-xs">
+                              <span>Color:</span>
+                              <span className="w-3.5 h-3.5 rounded-full border border-black/20" style={{ backgroundColor: textColor }} />
+                              <span className="font-mono font-bold">{textColor}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {logoUrl ? (
+                          <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex items-center gap-3">
+                            <div
+                              className="w-16 h-16 rounded border border-gray-300 flex items-center justify-center bg-white overflow-hidden shrink-0"
+                              style={{
+                                backgroundImage: 'linear-gradient(45deg, #e5e5e5 25%, transparent 25%), linear-gradient(-45deg, #e5e5e5 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e5e5 75%), linear-gradient(-45deg, transparent 75%, #e5e5e5 75%)',
+                                backgroundSize: '8px 8px',
+                                backgroundPosition: '0 0, 0 4px, 4px -4px, -4px 0'
+                              }}
+                            >
+                              <img src={logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Print Logo Graphic</span>
+                              <span className="text-xs font-bold text-gray-900">WebP High-Res (&lt;20KB)</span>
+                              <span className="text-[10px] text-gray-500 block">Alpha Channel Preserved</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex items-center text-xs text-gray-500">
+                            <span>No Logo Graphic Attached</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Quality Checklist & Operator Sign-off */}
+              <div className="border-t pt-4 flex justify-between items-center text-xs text-gray-500">
+                <div className="space-y-1">
+                  <p>✓ Garment Inspection Passed</p>
+                  <p>✓ Logo Scaled to Print Template</p>
+                  <p>✓ Imprint Color Match Verified</p>
+                </div>
+                <div className="text-right">
+                  <div className="w-36 border-b border-gray-400 h-8 mb-1"></div>
+                  <span className="text-[10px] uppercase tracking-wider text-gray-400">Operator Sign-Off</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2 print:hidden">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex-1 py-3 rounded-xl bg-gray-900 hover:bg-black text-white text-sm font-bold flex items-center justify-center gap-2 shadow-md"
+                >
+                  <Printer size={16} /> Print Job Sheet
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setJobCardOrder(null)}
+                  className="px-6 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

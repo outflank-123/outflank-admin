@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, verifyAdmin } from '@/lib/supabase/server'
 
 export async function POST(req: Request) {
   try {
@@ -11,22 +11,66 @@ export async function POST(req: Request) {
 
     const supabase = await createClient()
 
-    // Auth Check
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Auth Check: Must be Admin
+    const { isAdmin, error: authError } = await verifyAdmin()
+    if (!isAdmin) {
+      return NextResponse.json({ error: authError }, { status: 403 })
     }
 
-    // Validate if status is one of the allowed values
     const allowedStatuses = ['pending', 'paid', 'failed', 'shipped', 'out_for_delivery', 'delivered', 'cancelled']
     if (!allowedStatuses.includes(status)) {
       return NextResponse.json({ error: 'Invalid status value' }, { status: 400 })
     }
 
-    const { error } = await supabase
+    // Fetch current order status to enforce state machine direction
+    const { data: orderData, error: fetchError } = await supabase
       .from('retail_orders')
-      .update({ status })
+      .select('status')
       .eq('id', orderId)
+      .single()
+      
+    if (fetchError || !orderData) {
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+    }
+
+    const statusHierarchy: Record<string, number> = {
+      'cancelled': -1,
+      'failed': -1,
+      'pending': 0,
+      'paid': 1,
+      'shipped': 2,
+      'out_for_delivery': 3,
+      'delivered': 4
+    }
+
+    const currentIndex = statusHierarchy[orderData.status] ?? 0
+    const newIndex = statusHierarchy[status] ?? 0
+
+    // Prevent backwards movement in the state machine (unless cancelling/failing)
+    if (newIndex >= 0 && currentIndex >= 0 && newIndex < currentIndex) {
+      return NextResponse.json({ 
+        error: `Cannot move order backwards from '${orderData.status}' to '${status}'.` 
+      }, { status: 400 })
+    }
+
+    const updatePayload: any = { status }
+    if (status === 'delivered') {
+      updatePayload.delivered_at = new Date().toISOString()
+    }
+
+    let { error } = await supabase
+      .from('retail_orders')
+      .update(updatePayload)
+      .eq('id', orderId)
+
+    if (error && error.code === '42703' && updatePayload.delivered_at) {
+      delete updatePayload.delivered_at
+      const retry = await supabase
+        .from('retail_orders')
+        .update(updatePayload)
+        .eq('id', orderId)
+      error = retry.error
+    }
 
     if (error) {
       console.error('Error updating order status:', error)

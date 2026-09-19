@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, verifyAdmin } from '@/lib/supabase/server'
 
 const SHADOWFAX_BASE_URL = process.env.SHADOWFAX_BASE_URL || 'https://dale.staging.shadowfax.in/api'
 const SHADOWFAX_API_TOKEN = process.env.SHADOWFAX_API_TOKEN || ''
@@ -26,12 +26,11 @@ function sfxHeaders() {
  */
 export async function POST(req: NextRequest) {
   try {
-    // Auth Check
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    // Auth Check: Must be Admin
+    const { isAdmin, error: authError } = await verifyAdmin()
     
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!isAdmin) {
+      return NextResponse.json({ error: authError }, { status: 403 })
     }
 
     const { orderId, weightKg = 0.5, dimensions = '15x10x5' } = await req.json()

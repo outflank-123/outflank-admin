@@ -11,6 +11,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Outflank Admin Portal",
   description: "Secure admin portal for Outflank.",
+  icons: {
+    icon: "/logo/outflank-logo.png",
+    shortcut: "/logo/outflank-logo.png",
+    apple: "/logo/outflank-logo.png",
+  },
 };
 
 export default function RootLayout({

@@ -3,7 +3,6 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET(request: NextRequest) {
-  // Verify admin session
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -27,33 +26,68 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ leads: data })
 }
 
-export async function PATCH(request: NextRequest) {
-  // Verify admin session
+export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { id, status, notes } = body
+  const { name, company, email, phone, requirements, product_name, status, source, notes } = body
 
-  if (!id) return NextResponse.json({ error: 'Lead ID required' }, { status: 400 })
-
-  const validStatuses = ['new', 'contacted', 'qualified', 'closed']
-  if (status && !validStatuses.includes(status)) {
-    return NextResponse.json({ error: 'Invalid status value' }, { status: 400 })
+  if (!name || !company || !email) {
+    return NextResponse.json({ error: 'Name, company, and email are required' }, { status: 400 })
   }
 
   const admin = createAdminClient()
-  const updateData: Record<string, string> = {}
-  if (status) updateData.status = status
-  if (notes !== undefined) updateData.notes = notes
-
-  const { error } = await admin
+  const { data, error } = await admin
     .from('leads')
-    .update(updateData)
-    .eq('id', id)
+    .insert({
+      name,
+      company,
+      email,
+      phone: phone || null,
+      requirements: requirements || null,
+      product_name: product_name || null,
+      status: status || 'new',
+      source: source || 'admin_manual',
+      notes: notes || null
+    })
+    .select()
+    .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, lead: data })
+}
+
+export async function PATCH(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body = await request.json()
+  const { id, status, notes, name, company, email, phone, requirements } = body
+
+  if (!id) return NextResponse.json({ error: 'Lead ID required' }, { status: 400 })
+
+  const admin = createAdminClient()
+  const updateData: Record<string, any> = {}
+  if (status) updateData.status = status
+  if (notes !== undefined) updateData.notes = notes
+  if (name) updateData.name = name
+  if (company) updateData.company = company
+  if (email) updateData.email = email
+  if (phone !== undefined) updateData.phone = phone
+  if (requirements !== undefined) updateData.requirements = requirements
+
+  const { data, error } = await admin
+    .from('leads')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ success: true, lead: data })
 }

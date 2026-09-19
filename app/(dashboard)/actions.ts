@@ -116,79 +116,248 @@ export async function deleteCategory(id: string) {
 // --- PRODUCTS (super_admin, admin, junior) ---
 // ─────────────────────────────────────────────────────────────
 
-function sanitizeProductPayload(data: any) {
-  if (!data?.name || typeof data.name !== 'string' || !data.name.trim()) {
-    throw new Error('Product name is required.')
+function sanitizeProductPayload(data: any, isPartial = false) {
+  const payload: Record<string, any> = {}
+
+  if (!isPartial) {
+    if (!data?.name || typeof data.name !== 'string' || !data.name.trim()) {
+      throw new Error('Product name is required.')
+    }
+    if (!data?.slug || typeof data.slug !== 'string' || !data.slug.trim()) {
+      throw new Error('Product slug is required.')
+    }
   }
-  if (!data?.slug || typeof data.slug !== 'string' || !data.slug.trim()) {
-    throw new Error('Product slug is required.')
+
+  if (data.name !== undefined) {
+    if (typeof data.name !== 'string' || !data.name.trim()) {
+      throw new Error('Product name cannot be empty.')
+    }
+    payload.name = data.name.trim()
   }
 
-  const basePrice = data.base_price !== null && data.base_price !== undefined && data.base_price !== ''
-    ? Number(data.base_price)
-    : null
-
-  const minOrderQty = Number.isInteger(Number(data.min_order_qty))
-    ? Math.max(1, Number(data.min_order_qty))
-    : 50
-
-  const leadTimeDays = Number.isInteger(Number(data.lead_time_days))
-    ? Math.max(1, Number(data.lead_time_days))
-    : 15
-
-  return {
-    name: data.name.trim(),
-    slug: data.slug.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-'),
-    category_id: data.category_id || null,
-    description: typeof data.description === 'string' ? data.description.trim() : null,
-    short_desc: typeof data.short_desc === 'string' ? data.short_desc.trim() : null,
-    base_price: isNaN(basePrice as number) ? null : basePrice,
-    min_order_qty: minOrderQty,
-    lead_time_days: leadTimeDays,
-    is_featured: Boolean(data.is_featured),
-    is_active: data.is_active !== undefined ? Boolean(data.is_active) : true,
-    is_customizable: Boolean(data.is_customizable),
-    tags: Array.isArray(data.tags) ? data.tags : [],
-    color_variants: Array.isArray(data.color_variants) ? data.color_variants : [],
-    primary_image_url: typeof data.primary_image_url === 'string' ? data.primary_image_url : null,
-    image_gallery: Array.isArray(data.image_gallery) ? data.image_gallery : [],
-    branding_config: data.branding_config && typeof data.branding_config === 'object' ? data.branding_config : null,
+  if (data.slug !== undefined) {
+    if (typeof data.slug !== 'string' || !data.slug.trim()) {
+      throw new Error('Product slug cannot be empty.')
+    }
+    payload.slug = data.slug.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-')
   }
+
+  if (data.category_id !== undefined) {
+    payload.category_id = data.category_id || null
+  }
+
+  if (data.description !== undefined) {
+    payload.description = typeof data.description === 'string' ? data.description.trim() : null
+  }
+
+  if (data.short_desc !== undefined) {
+    payload.short_desc = typeof data.short_desc === 'string' ? data.short_desc.trim() : null
+  }
+
+  if (data.base_price !== undefined) {
+    const basePrice = data.base_price !== null && data.base_price !== '' ? Number(data.base_price) : null
+    payload.base_price = isNaN(basePrice as number) ? null : basePrice
+  }
+
+  if (data.min_order_qty !== undefined) {
+    const minOrderQty = Number(data.min_order_qty)
+    payload.min_order_qty = !isNaN(minOrderQty) ? Math.max(1, Math.round(minOrderQty)) : 50
+  }
+
+  if (data.lead_time_days !== undefined) {
+    const leadTimeDays = Number(data.lead_time_days)
+    payload.lead_time_days = !isNaN(leadTimeDays) ? Math.max(1, Math.round(leadTimeDays)) : 15
+  }
+
+  if (data.is_featured !== undefined) {
+    payload.is_featured = Boolean(data.is_featured)
+  }
+
+  if (data.is_active !== undefined) {
+    payload.is_active = Boolean(data.is_active)
+  }
+
+  if (data.is_retail !== undefined) {
+    payload.is_retail = Boolean(data.is_retail)
+  }
+
+  if (data.is_customizable !== undefined) {
+    payload.is_customizable = Boolean(data.is_customizable)
+  }
+
+  if (data.tags !== undefined) {
+    payload.tags = Array.isArray(data.tags) ? data.tags.filter((t: any) => typeof t === 'string' && t.trim()).map((t: string) => t.trim()) : []
+  }
+
+  if (data.color_variants !== undefined) {
+    payload.color_variants = Array.isArray(data.color_variants) ? data.color_variants : []
+  }
+
+  if (data.primary_image_url !== undefined) {
+    payload.primary_image_url = typeof data.primary_image_url === 'string' && data.primary_image_url.trim() ? data.primary_image_url.trim() : null
+  }
+
+  if (data.image_gallery !== undefined) {
+    payload.image_gallery = Array.isArray(data.image_gallery) ? data.image_gallery : []
+  }
+
+  if (data.source_pdf !== undefined) {
+    payload.source_pdf = typeof data.source_pdf === 'string' && data.source_pdf.trim() ? data.source_pdf.trim() : null
+  }
+
+  if (data.branding_config !== undefined) {
+    payload.branding_config = data.branding_config && typeof data.branding_config === 'object' ? data.branding_config : null
+  }
+
+  return payload
 }
 
 export async function createProduct(rawData: any) {
   const { supabase } = await requireAuthUser(['super_admin', 'admin', 'junior'])
-  const payload = sanitizeProductPayload(rawData)
+  const payload = sanitizeProductPayload(rawData, false)
 
-  const { error } = await supabase.from('products').insert([payload])
+  let insertData = { ...payload }
+  let { data, error } = await supabase.from('products').insert([insertData]).select().single()
+
+  // If database table column is_retail has not been created yet in Supabase (error 42703)
+  if (error && (error.code === '42703' || error.message?.includes('is_retail'))) {
+    console.warn('[createProduct] is_retail column not found in DB. Saving fallback inside branding_config.')
+    const { is_retail: _, ...payloadWithoutRetail } = insertData
+    const existingConfig = (payloadWithoutRetail.branding_config && typeof payloadWithoutRetail.branding_config === 'object') ? payloadWithoutRetail.branding_config : {}
+    payloadWithoutRetail.branding_config = { ...existingConfig, _is_retail: payload.is_retail }
+    const retry = await supabase.from('products').insert([payloadWithoutRetail]).select().single()
+    data = retry.data
+    error = retry.error
+  }
+
   if (error) {
     console.error('[createProduct] DB Error:', error)
     throw new Error(error.message || 'Failed to create product.')
   }
 
   revalidatePath('/products')
-  revalidatePath('/products')
   revalidatePath('/')
-  return { success: true }
+  return { success: true, product: data }
 }
 
 export async function updateProduct(id: string, rawData: any) {
   const { supabase } = await requireAuthUser(['super_admin', 'admin', 'junior'])
   if (!id || typeof id !== 'string') throw new Error('Valid product ID required.')
 
-  const payload = sanitizeProductPayload(rawData)
+  // If name and slug are not both provided, treat as partial update
+  const isPartial = !(rawData?.name && rawData?.slug)
+  const payload = sanitizeProductPayload(rawData, isPartial)
 
-  const { error } = await supabase.from('products').update(payload).eq('id', id)
+  let updateData = { ...payload }
+  let { data, error } = await supabase.from('products').update(updateData).eq('id', id).select().single()
+
+  // Fallback if column is_retail does not exist in DB yet
+  if (error && (error.code === '42703' || error.message?.includes('is_retail'))) {
+    console.warn('[updateProduct] is_retail column not found in DB. Storing fallback inside branding_config.')
+    const { is_retail: _, ...payloadWithoutRetail } = updateData
+    if (payload.is_retail !== undefined) {
+      const { data: current } = await supabase.from('products').select('branding_config').eq('id', id).single()
+      const currentConfig = (current?.branding_config && typeof current.branding_config === 'object') ? current.branding_config : {}
+      payloadWithoutRetail.branding_config = { ...currentConfig, ...(payloadWithoutRetail.branding_config || {}), _is_retail: payload.is_retail }
+    }
+    const retry = await supabase.from('products').update(payloadWithoutRetail).eq('id', id).select().single()
+    data = retry.data
+    error = retry.error
+  }
+
   if (error) {
     console.error('[updateProduct] DB Error:', error)
     throw new Error(error.message || 'Failed to update product.')
   }
 
   revalidatePath('/products')
-  revalidatePath('/products')
-  if (payload.slug) revalidatePath(`/products/${payload.slug}`)
+  if (data?.slug) revalidatePath(`/products/${data.slug}`)
   revalidatePath('/')
-  return { success: true }
+  return { success: true, product: data }
+}
+
+export async function batchUpdateProducts(updates: Array<{ id: string; changes: any }>) {
+  const { supabase } = await requireAuthUser(['super_admin', 'admin', 'junior'])
+  if (!Array.isArray(updates) || updates.length === 0) {
+    return { success: true, count: 0 }
+  }
+
+  const errors: string[] = []
+  let updatedCount = 0
+
+  await Promise.all(
+    updates.map(async ({ id, changes }) => {
+      try {
+        const payload = sanitizeProductPayload(changes, true)
+        let { error } = await supabase.from('products').update(payload).eq('id', id)
+        if (error && (error.code === '42703' || error.message?.includes('is_retail'))) {
+          const { is_retail, ...fallbackPayload } = payload
+          if (is_retail !== undefined) {
+            const { data: current } = await supabase.from('products').select('branding_config').eq('id', id).single()
+            const currentConfig = (current?.branding_config && typeof current.branding_config === 'object') ? current.branding_config : {}
+            fallbackPayload.branding_config = { ...currentConfig, ...(fallbackPayload.branding_config || {}), _is_retail: is_retail }
+          }
+          const retry = await supabase.from('products').update(fallbackPayload).eq('id', id)
+          error = retry.error
+        }
+        if (error) {
+          errors.push(`ID ${id}: ${error.message}`)
+        } else {
+          updatedCount++
+        }
+      } catch (err: any) {
+        errors.push(`ID ${id}: ${err.message || 'Unknown error'}`)
+      }
+    })
+  )
+
+  if (errors.length > 0) {
+    console.error('[batchUpdateProducts] Errors:', errors)
+  }
+
+  revalidatePath('/products')
+  revalidatePath('/')
+  return { success: errors.length === 0, count: updatedCount, errors }
+}
+
+export async function duplicateProduct(id: string) {
+  const { supabase } = await requireAuthUser(['super_admin', 'admin', 'junior'])
+  if (!id || typeof id !== 'string') throw new Error('Valid product ID required.')
+
+  const { data: original, error: fetchError } = await supabase
+    .from('products')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (fetchError || !original) {
+    throw new Error('Product to duplicate not found.')
+  }
+
+  const { id: _, created_at: __, updated_at: ___, ...rest } = original
+
+  const randomSuffix = Math.random().toString(36).substring(2, 7)
+  const clonedPayload = {
+    ...rest,
+    name: `${original.name} (Copy)`,
+    slug: `${original.slug}-copy-${randomSuffix}`,
+    is_active: false, // Default duplicated item to draft
+  }
+
+  const { data: newProduct, error: insertError } = await supabase
+    .from('products')
+    .insert([clonedPayload])
+    .select()
+    .single()
+
+  if (insertError) {
+    console.error('[duplicateProduct] DB Error:', insertError)
+    throw new Error(insertError.message || 'Failed to duplicate product.')
+  }
+
+  revalidatePath('/products')
+  revalidatePath('/')
+  return { success: true, product: newProduct }
 }
 
 export async function deleteProduct(id: string) {
@@ -201,7 +370,6 @@ export async function deleteProduct(id: string) {
     throw new Error(error.message || 'Failed to delete product.')
   }
 
-  revalidatePath('/products')
   revalidatePath('/products')
   revalidatePath('/')
   return { success: true }
