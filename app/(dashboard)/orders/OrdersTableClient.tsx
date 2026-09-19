@@ -6,7 +6,7 @@ import {
   ChevronDown, ChevronRight, Search, MapPin, Phone, ShoppingBag,
   Send, X, Printer, ExternalLink, RefreshCw, AlertTriangle,
   Navigation, PackageCheck, Ban, Wifi, WifiOff, PackageSearch,
-  Sparkles, Download, Copy, Check, Eye, MessageCircle, FileText,
+  Paintbrush, Download, Copy, Check, Eye, MessageCircle, FileText,
   ShieldCheck, Mail, ArrowUpRight
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -66,6 +66,8 @@ interface Order {
   notes?: string | null
   delivered_at?: string | null
   assets_purged?: boolean | null
+  shipping_fee?: number | null
+  razorpay_payment_id?: string | null
   retail_order_items: OrderItem[]
 }
 
@@ -147,8 +149,9 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
   const [dispatchError, setDispatchError] = useState<string | null>(null)
   const [dispatchSuccess, setDispatchSuccess] = useState<string | null>(null)
 
-  // Custom Print Job Sheet & Download State
+  // Custom Print Job Sheet, Invoice & Download State
   const [jobCardOrder, setJobCardOrder] = useState<Order | null>(null)
+  const [invoiceModalOrder, setInvoiceModalOrder] = useState<Order | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [lightboxImage, setLightboxImage] = useState<{ url: string; title: string } | null>(null)
 
@@ -282,7 +285,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
   // Used for the top filter tabs
   const tabOptions = [
     { value: 'all', label: 'All Orders', icon: PackageSearch },
-    { value: 'custom_print', label: 'Custom Print Orders', icon: Sparkles },
+    { value: 'custom_print', label: 'Custom Print Orders', icon: Paintbrush },
     { value: 'to_dispatch', label: 'Action Required', icon: Truck },
     { value: 'awaiting_payment', label: 'Awaiting Payment', icon: Clock },
     { value: 'shipped', label: 'Shipped / Out for Delivery', icon: Navigation },
@@ -454,7 +457,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                               <span>#{order.id.split('-')[0]}</span>
                               {hasCustomItems(order) && (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-extrabold bg-blue-50 text-[#0066FF] border border-blue-200">
-                                  <Sparkles size={10} /> CUSTOM PRINT
+                                  <Paintbrush size={10} /> CUSTOM PRINT
                                 </span>
                               )}
                             </div>
@@ -516,66 +519,72 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                       </td>
                     </tr>
 
-                    {/* Expanded Row - Redesigned High-End Production & Logistics Hub */}
+                    {/* Expanded Row - Premium Modern Order & Production Hub */}
                     {expandedOrderId === order.id && (
                       <tr>
                         <td colSpan={7} className="bg-[#f8f9fb] px-3 sm:px-6 py-5 border-b border-gray-200">
-                          <div className="max-w-6xl mx-auto bg-white rounded-2xl border border-gray-200/90 shadow-[0_4px_20px_rgba(0,0,0,0.03)] overflow-hidden">
+                          <div className="max-w-6xl mx-auto bg-white rounded-2xl border border-gray-200/90 shadow-[0_4px_24px_rgba(0,0,0,0.03)] overflow-hidden">
 
-                            {/* ── 1. Top Order Command Strip ── */}
-                            <div className="bg-slate-900 text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center font-mono font-bold text-xs text-white">
-                                  #{order.id.slice(0, 6).toUpperCase()}
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-bold text-sm tracking-tight text-white">Order Details</span>
-                                    {hasCustomItems(order) && (
-                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#0066FF] text-white">
-                                        <Sparkles size={10} /> Bespoke Apparel Customization
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-[11px] text-gray-400">
-                                    Placed on {new Date(order.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · {order.payment_method === 'cod' ? 'Cash on Delivery' : 'Prepaid (Razorpay)'}
-                                  </p>
-                                </div>
+                            {/* ── 1. Refined Order Header Bar ── */}
+                            <div className="bg-[#fcfcfd] border-b border-gray-200/80 px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+                              <div className="flex flex-wrap items-center gap-3">
+                                <span className="font-mono font-bold text-sm text-gray-900 tracking-tight">
+                                  #{order.id.slice(0, 8).toUpperCase()}
+                                </span>
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                                  order.status === 'delivered' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                  order.status === 'shipped' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                                  order.status === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                  'bg-amber-50 text-amber-700 border border-amber-200'
+                                }`}>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-current mr-1.5" />
+                                  {order.status.toUpperCase()}
+                                </span>
+                                <span className="text-xs text-gray-500 font-medium">
+                                  {order.payment_method === 'cod' ? 'Cash on Delivery' : 'Prepaid (Razorpay)'}
+                                </span>
+                                {hasCustomItems(order) && (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-[#0066FF] border border-blue-200/80">
+                                    <Paintbrush size={11} /> Bespoke Apparel
+                                  </span>
+                                )}
+                                <span className="text-xs text-gray-400">
+                                  {new Date(order.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </span>
                               </div>
 
-                              {/* Top Quick Actions */}
+                              {/* Action Buttons */}
                               <div className="flex items-center gap-2">
                                 {hasCustomItems(order) && (
                                   <button
                                     type="button"
                                     onClick={() => setJobCardOrder(order)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all cursor-pointer border border-white/15"
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gray-900 hover:bg-black text-white text-xs font-semibold shadow-2xs transition-all cursor-pointer"
                                   >
                                     <Printer size={13} />
                                     <span>Print Job Sheet</span>
                                   </button>
                                 )}
-                                <a
-                                  href={`/invoice/${order.id}?print=true`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all border border-white/15"
+                                <button
+                                  type="button"
+                                  onClick={() => setInvoiceModalOrder(order)}
+                                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-gray-50 text-gray-800 text-xs font-semibold border border-gray-200 shadow-2xs transition-all cursor-pointer"
                                 >
                                   <FileText size={13} />
                                   <span>Print Invoice</span>
-                                </a>
+                                </button>
                               </div>
                             </div>
 
-                            {/* ── 2. Master Split: Left (Production & Customization) vs Right (Logistics & Delivery) ── */}
+                            {/* ── 2. Two-Column Layout ── */}
                             <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
 
                               {/* ══ LEFT: Production & Items (7 Columns) ══ */}
-                              <div className="lg:col-span-7 p-5 sm:p-6 space-y-6">
+                              <div className="lg:col-span-7 p-6 space-y-5">
                                 <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                                   <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
                                     <ShoppingBag size={14} className="text-gray-700" />
-                                    <span>Garments & Production Specifications</span>
+                                    <span>Ordered Garments & Branding</span>
                                     <span className="text-[11px] font-semibold text-gray-400">({order.retail_order_items?.length || 0} items)</span>
                                   </h3>
                                   <span className="text-xs font-bold text-gray-900">
@@ -583,7 +592,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                                   </span>
                                 </div>
 
-                                <div className="space-y-6">
+                                <div className="space-y-4">
                                   {order.retail_order_items?.map((item, idx) => {
                                     const custom = getItemCustomization(item, order)
                                     const logoUrl = custom?.logo_url || custom?.logoUrl
@@ -595,24 +604,30 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                                     const garmentImg = (Array.isArray(item.products) ? item.products[0] : item.products)?.primary_image_url
 
                                     return (
-                                      <div key={item.id} className="rounded-xl border border-gray-200/90 bg-white overflow-hidden shadow-2xs">
+                                      <div key={item.id} className="rounded-xl border border-gray-200/80 bg-white overflow-hidden shadow-2xs">
                                         
-                                        {/* Item Title Bar */}
-                                        <div className="p-4 bg-slate-50/70 border-b border-gray-100 flex items-center justify-between gap-3">
+                                        {/* Item Row Header */}
+                                        <div className="p-4 bg-slate-50/60 border-b border-gray-100 flex items-center justify-between gap-4">
                                           <div className="flex items-center gap-3">
-                                            <span className="w-5 h-5 rounded-full bg-gray-200 text-gray-700 text-[10px] font-bold flex items-center justify-center shrink-0">
-                                              {idx + 1}
-                                            </span>
+                                            {garmentImg ? (
+                                              <img
+                                                src={garmentImg}
+                                                alt={item.product_name}
+                                                className="w-12 h-12 rounded-lg object-cover border border-gray-200 shrink-0 bg-white"
+                                              />
+                                            ) : (
+                                              <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                                                <Package className="w-5 h-5 text-gray-400" />
+                                              </div>
+                                            )}
                                             <div>
-                                              <p className="text-sm font-bold text-gray-900 leading-snug">{item.product_name}</p>
-                                              <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500">
-                                                <span>Qty: <strong className="text-gray-800">{item.quantity}</strong></span>
+                                              <p className="text-sm font-bold text-gray-900 leading-tight">{item.product_name}</p>
+                                              <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                                                <span>Qty: <strong className="text-gray-900">{item.quantity}</strong></span>
                                                 {item.selected_color && (
                                                   <>
                                                     <span>•</span>
-                                                    <span className="inline-flex items-center gap-1 font-medium text-gray-700">
-                                                      Color: <strong>{item.selected_color}</strong>
-                                                    </span>
+                                                    <span>Color: <strong className="text-gray-900">{item.selected_color}</strong></span>
                                                   </>
                                                 )}
                                               </div>
@@ -623,212 +638,117 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                                           </span>
                                         </div>
 
-                                        {/* Customization Workshop Section */}
-                                        {custom ? (
-                                          <div className="p-4 sm:p-5 bg-white space-y-4">
+                                        {/* Custom Branding Proof Card */}
+                                        {custom && (
+                                          <div className="p-4 bg-white space-y-3">
                                             
-                                            {/* Studio Banner */}
-                                            <div className="flex items-center justify-between bg-blue-50/60 border border-blue-100/90 rounded-lg px-3 py-2">
+                                            {/* Placement & Specs Header */}
+                                            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-gray-100">
                                               <div className="flex items-center gap-2">
-                                                <Sparkles size={13} className="text-[#0066FF]" />
-                                                <span className="text-xs font-bold text-[#0066FF] uppercase tracking-wide">
-                                                  Custom Branding Studio Imprint
+                                                <span className="text-xs font-bold text-[#0066FF] flex items-center gap-1">
+                                                  <Paintbrush size={12} /> Custom Artwork Proof
+                                                </span>
+                                                <span className="text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-md">
+                                                  Placement: <strong>{cleanPlacement}</strong>
                                                 </span>
                                               </div>
-                                              <span className="text-xs font-semibold text-gray-700">
-                                                Placement: <strong className="text-gray-900">{cleanPlacement}</strong>
-                                              </span>
+                                              {custom.coordinates && (
+                                                <span className="text-[10px] font-mono text-gray-400 bg-gray-50 px-2 py-0.5 rounded border border-gray-200">
+                                                  X: {custom.coordinates.left} · Y: {custom.coordinates.top} · Scale: {custom.coordinates.width}
+                                                </span>
+                                              )}
                                             </div>
 
-                                            {/* Visual Garment Mockup + Specs Grid */}
-                                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-start">
-                                              
-                                              {/* ── Interactive Garment Placement Preview (5 cols) ── */}
-                                              <div className="sm:col-span-5 flex flex-col items-center">
-                                                <div 
-                                                  onClick={() => garmentImg && setLightboxImage({ url: garmentImg, title: `${item.product_name} - ${item.selected_color || ''}` })}
-                                                  className="relative w-full aspect-square max-w-[200px] rounded-xl bg-slate-50 border border-gray-200 overflow-hidden flex items-center justify-center cursor-pointer group shadow-2xs hover:shadow-xs transition-all"
-                                                  title="Click to view garment preview"
-                                                >
-                                                  {garmentImg ? (
-                                                    <img 
-                                                      src={garmentImg} 
-                                                      alt={item.product_name} 
-                                                      className="w-full h-full object-contain p-2" 
-                                                    />
-                                                  ) : (
-                                                    <Package className="w-12 h-12 text-gray-300" />
-                                                  )}
+                                            {/* Artwork Details */}
+                                            {logoUrl ? (
+                                              <div className="flex items-center justify-between gap-4 p-3 rounded-xl bg-slate-50 border border-gray-200/90">
+                                                <div className="flex items-center gap-3">
+                                                  {/* Logo on Transparency Grid */}
+                                                  <div
+                                                    onClick={() => setLightboxImage({ url: logoUrl, title: `Order ${order.id.slice(0, 8).toUpperCase()} Logo Artwork` })}
+                                                    className="w-16 h-16 rounded-xl border border-gray-300 flex items-center justify-center overflow-hidden shrink-0 cursor-pointer hover:border-black transition-colors shadow-2xs"
+                                                    style={{
+                                                      backgroundImage: 'linear-gradient(45deg, #e5e5e5 25%, transparent 25%), linear-gradient(-45deg, #e5e5e5 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e5e5 75%), linear-gradient(-45deg, transparent 75%, #e5e5e5 75%)',
+                                                      backgroundSize: '10px 10px',
+                                                      backgroundPosition: '0 0, 0 5px, 5px -5px, -5px 0'
+                                                    }}
+                                                    title="Click to view full size"
+                                                  >
+                                                    <img src={logoUrl} alt="Logo" className="max-w-full max-h-full object-contain p-1.5" />
+                                                  </div>
 
-                                                  {/* Logo overlay positioned at exact customer coordinates */}
-                                                  {logoUrl && (
-                                                    <div
-                                                      className="absolute pointer-events-none transition-transform group-hover:scale-105"
-                                                      style={{
-                                                        left: custom.coordinates?.left || '50%',
-                                                        top: custom.coordinates?.top || '49%',
-                                                        width: custom.coordinates?.width || '22%',
-                                                        transform: 'translate(-50%, -50%)',
-                                                      }}
-                                                    >
-                                                      <img 
-                                                        src={logoUrl} 
-                                                        alt="Logo Preview" 
-                                                        className="w-full h-auto object-contain drop-shadow-xs" 
-                                                      />
+                                                  <div>
+                                                    <div className="flex items-center gap-2">
+                                                      <span className="text-xs font-bold text-gray-900">High-Res Print Asset</span>
+                                                      <span className="text-[9px] font-extrabold px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded-md">
+                                                        WebP &lt; 20KB
+                                                      </span>
                                                     </div>
-                                                  )}
-
-                                                  {/* Brand text overlay */}
-                                                  {brandText && (
-                                                    <div
-                                                      className="absolute pointer-events-none text-center font-bold font-sans transition-transform group-hover:scale-105"
-                                                      style={{
-                                                        left: custom.coordinates?.left || '50%',
-                                                        top: custom.coordinates?.top || '49%',
-                                                        color: textColor,
-                                                        transform: 'translate(-50%, -50%)',
-                                                        fontSize: '11px',
-                                                        maxWidth: '45%',
-                                                        textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                                                      }}
-                                                    >
-                                                      {brandText}
-                                                    </div>
-                                                  )}
-
-                                                  {/* Hover badge */}
-                                                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent py-1.5 px-2 flex items-center justify-between text-white text-[10px] font-medium opacity-90 group-hover:opacity-100 transition-opacity">
-                                                    <span className="flex items-center gap-1 font-semibold">
-                                                      <Eye size={10} /> Live Mockup
-                                                    </span>
-                                                    <span className="font-mono text-[9px] text-gray-200">
-                                                      {custom.coordinates ? `${custom.coordinates.left}, ${custom.coordinates.top}` : 'Center'}
-                                                    </span>
+                                                    <p className="text-[11px] text-gray-500 mt-0.5">Alpha transparency preserved · Ready for screen print/embroidery</p>
+                                                    {custom.file_size_kb && (
+                                                      <p className="text-[10px] text-gray-400 font-mono">File Size: {custom.file_size_kb} KB</p>
+                                                    )}
                                                   </div>
                                                 </div>
-                                                <span className="text-[10px] text-gray-400 mt-1 font-medium">Customer Placement Preview</span>
+
+                                                {/* Action Buttons */}
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => downloadLogo(logoUrl, `Order_${order.id.slice(0, 8)}_logo.webp`)}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-gray-900 hover:bg-black text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                                                  >
+                                                    <Download size={13} />
+                                                    <span>Download File</span>
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setLightboxImage({ url: logoUrl, title: `Order ${order.id.slice(0, 8).toUpperCase()} Logo Artwork` })}
+                                                    className="p-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                                                    title="Inspect artwork"
+                                                  >
+                                                    <Eye size={14} />
+                                                  </button>
+                                                </div>
                                               </div>
+                                            ) : null}
 
-                                              {/* ── Artwork & Asset Specifications (7 cols) ── */}
-                                              <div className="sm:col-span-7 space-y-3">
-                                                
-                                                {/* If Uploaded Logo */}
-                                                {logoUrl ? (
-                                                  <div className="bg-slate-50 p-3.5 rounded-xl border border-gray-200 space-y-3">
-                                                    <div className="flex items-center justify-between">
-                                                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                                                        Production Artwork File
-                                                      </span>
-                                                      <span className="text-[9px] font-extrabold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md">
-                                                        WebP Print Ready (&lt;20KB)
-                                                      </span>
-                                                    </div>
-
-                                                    <div className="flex items-center gap-3">
-                                                      {/* Logo Thumbnail with checkerboard background */}
-                                                      <div
-                                                        onClick={() => setLightboxImage({ url: logoUrl, title: `Order ${order.id.split('-')[0].toUpperCase()} Logo Artwork` })}
-                                                        className="w-14 h-14 rounded-lg border border-gray-300 flex items-center justify-center overflow-hidden shrink-0 cursor-pointer hover:border-black transition-colors"
-                                                        style={{
-                                                          backgroundImage: 'linear-gradient(45deg, #e5e5e5 25%, transparent 25%), linear-gradient(-45deg, #e5e5e5 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e5e5 75%), linear-gradient(-45deg, transparent 75%, #e5e5e5 75%)',
-                                                          backgroundSize: '8px 8px',
-                                                          backgroundPosition: '0 0, 0 4px, 4px -4px, -4px 0'
-                                                        }}
-                                                        title="Click to view full size"
-                                                      >
-                                                        <img src={logoUrl} alt="Logo" className="max-w-full max-h-full object-contain p-1" />
-                                                      </div>
-
-                                                      <div className="flex-1 min-w-0">
-                                                        <p className="text-xs font-bold text-gray-900 truncate">Customer Logo Graphic</p>
-                                                        <p className="text-[10px] text-gray-500">Alpha channel transparency preserved</p>
-                                                        {custom.file_size_kb && (
-                                                          <p className="text-[10px] text-gray-400 font-mono mt-0.5">Size: {custom.file_size_kb} KB</p>
-                                                        )}
-                                                      </div>
-                                                    </div>
-
-                                                    {/* Action Buttons */}
-                                                    <div className="flex items-center gap-2 pt-1 border-t border-gray-200/60">
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => downloadLogo(logoUrl, `Order_${order.id.split('-')[0]}_logo.webp`)}
-                                                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-900 hover:bg-black text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
-                                                      >
-                                                        <Download size={13} />
-                                                        <span>Download Print File</span>
-                                                      </button>
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => setLightboxImage({ url: logoUrl, title: `Order ${order.id.split('-')[0].toUpperCase()} Logo Artwork` })}
-                                                        className="px-2.5 py-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                                                        title="Inspect full screen"
-                                                      >
-                                                        <Eye size={13} />
-                                                      </button>
+                                            {/* Text Imprint */}
+                                            {brandText ? (
+                                              <div className="p-3 rounded-xl bg-slate-50 border border-gray-200/90 flex items-center justify-between gap-4">
+                                                <div>
+                                                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-1">Text Imprint</span>
+                                                  <div className="flex items-center gap-2">
+                                                    <span className="font-mono font-bold text-sm text-gray-900">&ldquo;{brandText}&rdquo;</span>
+                                                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                                                      <span>• Color:</span>
+                                                      <span className="w-3.5 h-3.5 rounded-full border border-black/20" style={{ backgroundColor: textColor }} />
+                                                      <span className="font-mono font-bold text-[10px]">{textColor}</span>
                                                     </div>
                                                   </div>
-                                                ) : null}
-
-                                                {/* If Brand Text */}
-                                                {brandText ? (
-                                                  <div className="bg-slate-50 p-3 rounded-xl border border-gray-200 space-y-2">
-                                                    <div className="flex items-center justify-between">
-                                                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                                                        Custom Text to Imprint
-                                                      </span>
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => copyToClipboard(brandText, `${item.id}-text`)}
-                                                        className="text-[10px] font-bold text-[#0066FF] hover:underline flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded cursor-pointer"
-                                                      >
-                                                        {copiedId === `${item.id}-text` ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy Text</>}
-                                                      </button>
-                                                    </div>
-                                                    <div className="bg-white px-3 py-2 rounded-lg border border-gray-200 flex items-center justify-between">
-                                                      <span className="font-mono font-bold text-sm text-gray-900">&ldquo;{brandText}&rdquo;</span>
-                                                      <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                                                        <span className="w-3.5 h-3.5 rounded-full border border-black/20" style={{ backgroundColor: textColor }} />
-                                                        <span className="font-mono font-bold text-[10px]">{textColor}</span>
-                                                      </div>
-                                                    </div>
-                                                  </div>
-                                                ) : null}
-
-                                                {/* Technical Placement Telemetry */}
-                                                {custom.coordinates && (
-                                                  <div className="flex items-center gap-2 text-[10px] text-gray-500 font-mono bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-200/80">
-                                                    <span className="font-sans font-bold text-gray-700 uppercase">Telemetry:</span>
-                                                    <span>X: <strong>{custom.coordinates.left}</strong></span>
-                                                    <span>•</span>
-                                                    <span>Y: <strong>{custom.coordinates.top}</strong></span>
-                                                    <span>•</span>
-                                                    <span>Scale: <strong>{custom.coordinates.width}</strong></span>
-                                                  </div>
-                                                )}
-
+                                                </div>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => copyToClipboard(brandText, `${item.id}-text`)}
+                                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                                                >
+                                                  {copiedId === `${item.id}-text` ? <><Check size={12} className="text-emerald-600" /> Copied</> : <><Copy size={12} /> Copy Text</>}
+                                                </button>
                                               </div>
+                                            ) : null}
+
+                                            {/* Retention Status */}
+                                            <div className="flex items-center gap-1.5 text-[11px] pt-1 text-gray-400 font-medium">
+                                              <ShieldCheck size={13} className={isPurged ? 'text-gray-400' : 'text-emerald-600'} />
+                                              {isPurged ? (
+                                                <span>Asset purged per 14-day data retention policy</span>
+                                              ) : order.status === 'delivered' ? (
+                                                <span className="text-amber-700">Delivered · 14-day retention countdown active</span>
+                                              ) : (
+                                                <span className="text-emerald-700 font-medium">Active asset · Auto-purged 14 days after delivery</span>
+                                              )}
                                             </div>
 
-                                            {/* Privacy Policy Retention Status */}
-                                            <div className="flex items-center justify-between text-[11px] pt-2 text-gray-500 border-t border-gray-100">
-                                              <span className="flex items-center gap-1.5 font-medium">
-                                                <ShieldCheck size={13} className={isPurged ? 'text-gray-400' : 'text-emerald-600'} />
-                                                {isPurged ? (
-                                                  <span className="text-gray-500">Asset purged per 14-day data retention policy</span>
-                                                ) : order.status === 'delivered' ? (
-                                                  <span className="text-amber-700">Delivered · 14-day asset retention countdown active</span>
-                                                ) : (
-                                                  <span className="text-emerald-700">Print asset active · Auto-purged 14 days after delivery</span>
-                                                )}
-                                              </span>
-                                            </div>
-
-                                          </div>
-                                        ) : (
-                                          <div className="p-3 text-xs text-gray-400 italic bg-gray-50/50">
-                                            Standard non-customized product
                                           </div>
                                         )}
 
@@ -839,104 +759,102 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                               </div>
 
                               {/* ══ RIGHT: Logistics & Customer (5 Columns) ══ */}
-                              <div className="lg:col-span-5 p-5 sm:p-6 bg-slate-50/40 space-y-5">
+                              <div className="lg:col-span-5 p-6 bg-[#fafafa]/50 space-y-5">
                                 
-                                {/* ── A. Shadowfax Express Logistics Card ── */}
-                                <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
-                                  <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between">
+                                {/* ── A. Shadowfax Logistics Hub ── */}
+                                <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3.5 shadow-2xs">
+                                  <div className="flex items-center justify-between pb-2 border-b border-gray-100">
                                     <div className="flex items-center gap-2">
-                                      <Truck size={15} className="text-blue-400" />
-                                      <span className="font-bold text-xs uppercase tracking-wide">Shadowfax Logistics</span>
+                                      <Truck size={16} className="text-gray-700" />
+                                      <span className="font-bold text-xs uppercase tracking-wider text-gray-800">Shadowfax Logistics</span>
                                     </div>
                                     {order.awb_number && (
-                                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold border border-blue-400/30">
+                                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200">
                                         SURFACE EXPRESS
                                       </span>
                                     )}
                                   </div>
 
-                                  <div className="p-4 space-y-3">
-                                    {order.awb_number ? (
-                                      <>
-                                        <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                                          <div>
-                                            <span className="text-[10px] uppercase font-bold text-gray-400 block">AWB Tracking Number</span>
-                                            <div className="flex items-center gap-1.5 mt-0.5">
-                                              <span className="font-mono font-bold text-blue-700 text-sm">{order.awb_number}</span>
-                                              <button
-                                                type="button"
-                                                onClick={() => copyToClipboard(order.awb_number!, `${order.id}-awb`)}
-                                                className="text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-semibold transition-colors cursor-pointer"
-                                              >
-                                                {copiedId === `${order.id}-awb` ? 'Copied' : 'Copy'}
-                                              </button>
-                                            </div>
+                                  {order.awb_number ? (
+                                    <>
+                                      <div className="flex items-center justify-between">
+                                        <div>
+                                          <span className="text-[10px] uppercase font-bold text-gray-400 block">AWB Tracking Number</span>
+                                          <div className="flex items-center gap-1.5 mt-0.5">
+                                            <span className="font-mono font-bold text-blue-700 text-sm">{order.awb_number}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => copyToClipboard(order.awb_number!, `${order.id}-awb`)}
+                                              className="text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-semibold transition-colors cursor-pointer"
+                                            >
+                                              {copiedId === `${order.id}-awb` ? 'Copied' : 'Copy'}
+                                            </button>
                                           </div>
-                                          {order.shadowfax_status && (() => {
-                                            const s = sfxStatusLabel(order.shadowfax_status)
-                                            return s ? (
-                                              <span className={`text-xs px-2.5 py-1 rounded-full font-bold shadow-2xs ${s.color}`}>
-                                                {s.label}
-                                              </span>
-                                            ) : null
-                                          })()}
                                         </div>
+                                        {order.shadowfax_status && (() => {
+                                          const s = sfxStatusLabel(order.shadowfax_status)
+                                          return s ? (
+                                            <span className={`text-xs px-2.5 py-1 rounded-full font-bold shadow-2xs ${s.color}`}>
+                                              {s.label}
+                                            </span>
+                                          ) : null
+                                        })()}
+                                      </div>
 
-                                        {order.dispatched_at && (
-                                          <p className="text-[11px] text-gray-500">
-                                            Dispatched: {new Date(order.dispatched_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                      {order.dispatched_at && (
+                                        <p className="text-[11px] text-gray-500">
+                                          Dispatched: {new Date(order.dispatched_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                      )}
+
+                                      <div className="flex items-center gap-2 pt-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => openShippingLabel(order.id)}
+                                          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-gray-900 hover:bg-black text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                                        >
+                                          <Printer size={13} />
+                                          <span>Shipping Label</span>
+                                        </button>
+                                        <a
+                                          href={`https://shadowfax.in/tracking/${order.awb_number}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-gray-50 text-gray-800 text-xs font-bold border border-gray-200 transition-all shadow-xs"
+                                        >
+                                          <ExternalLink size={13} />
+                                          <span>Track Courier</span>
+                                        </a>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      <div className="flex items-start gap-3">
+                                        <div className="w-9 h-9 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                                          <PackageCheck size={18} />
+                                        </div>
+                                        <div>
+                                          <p className="text-xs font-bold text-gray-900">Package Ready for Carrier</p>
+                                          <p className="text-[11px] text-gray-500 mt-0.5">
+                                            {['pending', 'processing', 'paid', 'shipped'].includes(order.status)
+                                              ? 'Generate Shadowfax AWB and schedule carrier pickup.'
+                                              : `Order status is currently ${order.status}.`}
                                           </p>
-                                        )}
-
-                                        <div className="flex items-center gap-2 pt-1">
-                                          <button
-                                            type="button"
-                                            onClick={() => openShippingLabel(order.id)}
-                                            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-gray-900 hover:bg-black text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
-                                          >
-                                            <Printer size={13} />
-                                            <span>Shipping Label</span>
-                                          </button>
-                                          <a
-                                            href={`https://shadowfax.in/tracking/${order.awb_number}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs"
-                                          >
-                                            <ExternalLink size={13} />
-                                            <span>Track Courier</span>
-                                          </a>
                                         </div>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <div className="flex items-start gap-3">
-                                          <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-                                            <PackageCheck size={20} />
-                                          </div>
-                                          <div>
-                                            <p className="text-xs font-bold text-gray-900">Package Ready for Carrier</p>
-                                            <p className="text-[11px] text-gray-500 mt-0.5">
-                                              {['pending', 'processing', 'paid', 'shipped'].includes(order.status)
-                                                ? 'Generate Shadowfax AWB and schedule instant courier pickup.'
-                                                : `Order status is currently ${order.status}.`}
-                                            </p>
-                                          </div>
-                                        </div>
+                                      </div>
 
-                                        {['pending', 'processing', 'paid', 'shipped'].includes(order.status) && (
-                                          <button
-                                            type="button"
-                                            onClick={e => { e.stopPropagation(); setDispatchOrder(order); setDispatchError(null); setDispatchSuccess(null) }}
-                                            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#0066FF] hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm shadow-blue-200 cursor-pointer"
-                                          >
-                                            <Send size={13} />
-                                            <span>Dispatch via Shadowfax</span>
-                                          </button>
-                                        )}
-                                      </>
-                                    )}
-                                  </div>
+                                      {['pending', 'processing', 'paid', 'shipped'].includes(order.status) && (
+                                        <button
+                                          type="button"
+                                          onClick={e => { e.stopPropagation(); setDispatchOrder(order); setDispatchError(null); setDispatchSuccess(null) }}
+                                          className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                                        >
+                                          <Send size={13} />
+                                          <span>Dispatch via Shadowfax</span>
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
 
                                 {/* ── B. Customer & Delivery Address Card ── */}
@@ -959,7 +877,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                                       </div>
                                     </div>
 
-                                    {/* Quick Contact Actions: WhatsApp & Call */}
+                                    {/* Contact Actions: WhatsApp & Call */}
                                     {order.customer_phone && (
                                       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
                                         <a
@@ -1297,6 +1215,249 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                 >
                   Close
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Official Tax Invoice Modal ─── */}
+      {invoiceModalOrder && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto print:p-0 print:bg-white print:static" 
+          onClick={() => setInvoiceModalOrder(null)}
+        >
+          <style dangerouslySetInnerHTML={{ __html: `
+            @media print {
+              body * {
+                visibility: hidden !important;
+              }
+              #printable-tax-invoice, #printable-tax-invoice * {
+                visibility: visible !important;
+              }
+              #printable-tax-invoice {
+                position: fixed !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 10mm !important;
+                box-shadow: none !important;
+                border: none !important;
+                background: white !important;
+              }
+            }
+          `}} />
+          <div 
+            id="printable-tax-invoice"
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden my-auto border border-gray-200 print:shadow-none print:border-none print:rounded-none print:w-full print:max-w-none print:m-0" 
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Control Header (Hidden on print) */}
+            <div className="bg-[#fcfcfd] border-b border-gray-200 px-6 py-4 flex items-center justify-between print:hidden">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-blue-50 text-[#0066FF] rounded-xl flex items-center justify-center border border-blue-100">
+                  <FileText size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-gray-900">Official Tax Invoice</h3>
+                  <p className="text-xs text-gray-500 font-mono">Order #{invoiceModalOrder.id.slice(0, 8).toUpperCase()}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 hover:bg-black text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                >
+                  <Printer size={13} />
+                  <span>Print / Save PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.open(`/invoice/${invoiceModalOrder.id}`, '_blank')}
+                  className="p-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                  title="Open standalone URL in new tab"
+                >
+                  <ExternalLink size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInvoiceModalOrder(null)}
+                  className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-900 rounded-xl transition-colors cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Invoice Sheet */}
+            <div className="p-8 sm:p-10 space-y-6 text-gray-900 text-xs">
+              {/* Header with Logo */}
+              <div className="flex flex-col sm:flex-row justify-between items-start pb-6 border-b border-gray-200 gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <img src="/logo/outflank-logo.png" alt="Outflank" className="h-8 w-auto object-contain" />
+                    <span className="text-lg font-black tracking-tight text-gray-900">OUTFLANK</span>
+                  </div>
+                  <p className="text-gray-500 text-[11px] leading-relaxed">
+                    Premium Apparel &amp; Corporate Customization<br />
+                    Web: outflank.in · Support: info@outflank.in
+                  </p>
+                </div>
+
+                <div className="text-left sm:text-right">
+                  <h1 className="text-2xl font-black tracking-tight text-gray-900 mb-1">TAX INVOICE</h1>
+                  <div className="text-xs text-gray-600 space-y-0.5">
+                    <p><span className="font-semibold text-gray-800">Invoice No:</span> <strong className="font-mono text-gray-900">#{invoiceModalOrder.id.slice(0, 8).toUpperCase()}</strong></p>
+                    <p><span className="font-semibold text-gray-800">Date:</span> {new Date(invoiceModalOrder.created_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    <p><span className="font-semibold text-gray-800">Payment:</span> <span className="font-bold text-gray-900">{invoiceModalOrder.payment_method === 'cod' ? 'Cash on Delivery' : 'Prepaid (Razorpay)'}</span></p>
+                    {invoiceModalOrder.razorpay_payment_id && (
+                      <p className="font-mono text-[10px] text-gray-500">Txn: {invoiceModalOrder.razorpay_payment_id}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Billed & Shipped To */}
+              <div className="grid grid-cols-2 gap-6 py-3 border-b border-gray-200">
+                <div>
+                  <h4 className="font-bold text-gray-400 uppercase tracking-widest text-[10px] mb-1.5">Billed &amp; Shipped To</h4>
+                  <p className="font-bold text-gray-900 text-sm">{invoiceModalOrder.customer_name}</p>
+                  <p className="text-gray-600 leading-relaxed whitespace-pre-line mt-1">
+                    {invoiceModalOrder.shipping_address ? (
+                      typeof invoiceModalOrder.shipping_address === 'string' && invoiceModalOrder.shipping_address.startsWith('{') ? (() => {
+                        try {
+                          const a = JSON.parse(invoiceModalOrder.shipping_address)
+                          return `${a.addressLine1 || a.address || ''}, ${a.city || ''} ${a.state || ''} ${a.pincode || ''}`
+                        } catch {
+                          return invoiceModalOrder.shipping_address
+                        }
+                      })() : invoiceModalOrder.shipping_address
+                    ) : '—'}
+                  </p>
+                  <div className="mt-2 text-gray-600 space-y-0.5">
+                    <p><span className="font-medium text-gray-700">Phone:</span> {invoiceModalOrder.customer_phone}</p>
+                    <p><span className="font-medium text-gray-700">Email:</span> {invoiceModalOrder.customer_email}</p>
+                  </div>
+                </div>
+
+                <div className="text-right flex flex-col justify-between">
+                  <div>
+                    <h4 className="font-bold text-gray-400 uppercase tracking-widest text-[10px] mb-1.5">Logistics &amp; Fulfillment</h4>
+                    <p className="text-gray-600">Carrier: <strong>Shadowfax Surface Express</strong></p>
+                    {invoiceModalOrder.awb_number && (
+                      <p className="font-mono font-bold text-blue-700 mt-1">AWB: {invoiceModalOrder.awb_number}</p>
+                    )}
+                  </div>
+                  <div className="mt-4">
+                    <span className="inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Status: {invoiceModalOrder.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="py-2">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-gray-900 text-[10px] font-bold uppercase tracking-wider text-gray-900">
+                      <th className="py-2 w-8 text-center text-gray-400">#</th>
+                      <th className="py-2">Item &amp; Specifications</th>
+                      <th className="py-2 text-center w-16">Qty</th>
+                      <th className="py-2 text-right w-24">Unit Price</th>
+                      <th className="py-2 text-right w-24">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {invoiceModalOrder.retail_order_items?.map((item, idx) => {
+                      const custom = getItemCustomization(item, invoiceModalOrder)
+                      const logoUrl = custom?.logo_url || custom?.logoUrl
+                      const brandText = custom?.brand_text || custom?.brandText || custom?.text
+                      const textColor = custom?.text_color || custom?.textColor || '#FFFFFF'
+                      const rawPlacement = custom?.print_position || custom?.printPosition || 'Front Center Chest'
+                      const cleanPlacement = rawPlacement.replace(/\s*\([^)]*\)$/, '').trim()
+
+                      return (
+                        <tr key={item.id || idx} className="align-top">
+                          <td className="py-3 text-center text-gray-400 font-mono text-xs">{idx + 1}</td>
+                          <td className="py-3 pr-4">
+                            <p className="font-bold text-gray-900 text-xs">{item.product_name}</p>
+                            {item.selected_color && (
+                              <p className="text-gray-500 text-[11px] mt-0.5">Color: <strong className="text-gray-700">{item.selected_color}</strong></p>
+                            )}
+
+                            {custom && (
+                              <div className="mt-2 p-2.5 rounded-lg bg-blue-50/50 border border-blue-200/80 space-y-1.5">
+                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-700">
+                                  <Paintbrush size={11} />
+                                  <span>Custom Print: {cleanPlacement}</span>
+                                </div>
+                                {brandText && (
+                                  <div className="flex items-center gap-2 text-[11px]">
+                                    <span className="text-gray-500">Text:</span>
+                                    <strong className="font-mono">"{brandText}"</strong>
+                                    <span className="w-2.5 h-2.5 rounded-full border border-black/20" style={{ backgroundColor: textColor }} />
+                                    <span className="font-mono text-[10px] text-gray-600">{textColor}</span>
+                                  </div>
+                                )}
+                                {logoUrl && (
+                                  <div className="flex items-center gap-2 pt-1">
+                                    <div
+                                      className="w-8 h-8 rounded border border-gray-300 bg-white p-0.5 flex items-center justify-center shrink-0"
+                                      style={{
+                                        backgroundImage: 'linear-gradient(45deg, #e5e5e5 25%, transparent 25%), linear-gradient(-45deg, #e5e5e5 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e5e5 75%), linear-gradient(-45deg, transparent 75%, #e5e5e5 75%)',
+                                        backgroundSize: '6px 6px'
+                                      }}
+                                    >
+                                      <img src={logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
+                                    </div>
+                                    <span className="text-[10px] text-gray-600">Attached Custom Logo (WebP Print-Ready)</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3 text-center text-gray-700 font-semibold">{item.quantity}</td>
+                          <td className="py-3 text-right font-mono text-gray-700">₹{Number(item.price_at_time).toLocaleString('en-IN')}</td>
+                          <td className="py-3 text-right font-mono font-bold text-gray-900">₹{(Number(item.price_at_time) * item.quantity).toLocaleString('en-IN')}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Price Breakdown */}
+              <div className="pt-3 border-t-2 border-gray-900 flex justify-end">
+                <div className="w-64 space-y-1.5 text-xs">
+                  <div className="flex justify-between text-gray-600">
+                    <span>Items Subtotal</span>
+                    <span className="font-mono font-semibold text-gray-900">
+                      ₹{(Number(invoiceModalOrder.total_amount) - Number(invoiceModalOrder.shipping_fee || 0)).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-gray-600">
+                    <span>Shipping &amp; Handling</span>
+                    <span className="font-mono font-semibold text-gray-900">
+                      {Number(invoiceModalOrder.shipping_fee || 0) > 0 ? `₹${Number(invoiceModalOrder.shipping_fee).toLocaleString('en-IN')}` : 'FREE'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm pt-2 border-t border-gray-200">
+                    <span className="font-black text-gray-900 uppercase">Grand Total</span>
+                    <span className="font-black text-gray-900 font-mono text-base">
+                      ₹{Number(invoiceModalOrder.total_amount).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 text-right">Inclusive of all applicable GST</p>
+                </div>
+              </div>
+
+              {/* Invoice Footer */}
+              <div className="pt-6 border-t border-gray-200 text-center text-gray-500 text-[11px] space-y-1">
+                <p className="font-bold text-gray-800">Thank you for ordering with Outflank!</p>
+                <p>Support: info@outflank.in · Online Tracking: outflank.in/track</p>
               </div>
             </div>
           </div>

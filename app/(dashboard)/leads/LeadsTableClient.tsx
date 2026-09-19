@@ -19,7 +19,7 @@ import {
   UserCheck, 
   TrendingUp, 
   X,
-  Sparkles,
+  UserPlus,
   ArrowRight,
   ChevronRight,
   Filter
@@ -636,7 +636,7 @@ export default function LeadsTableClient({ leads: initialLeads, activeStatus }: 
             
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <Sparkles size={18} className="text-[#e3231c]" />
+                <UserPlus size={18} className="text-[#e3231c]" />
                 <h3 className="text-base font-extrabold text-[#1d1d1f]">Create New Deal / Lead</h3>
               </div>
               <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-[#1d1d1f]">

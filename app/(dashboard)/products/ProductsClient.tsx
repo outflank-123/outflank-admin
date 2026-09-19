@@ -4,7 +4,7 @@ import { useState, useTransition, useId, useMemo, useEffect } from 'react'
 import {
   Plus, Edit2, Edit3, Trash2, Search, Package, X, Image as ImageIcon,
   UploadCloud, Loader2, Copy, ExternalLink, Star, Check, LayoutGrid,
-  List, Tag, SlidersHorizontal, ArrowUpDown, Palette, Sparkles,
+  List, Tag, SlidersHorizontal, ArrowUpDown, Palette, Paintbrush,
   DollarSign, Clock, ShieldAlert, Eye, RefreshCw, ChevronLeft,
   ChevronRight, ArrowUp, ArrowDown, CheckSquare, Square, MinusSquare,
   HelpCircle, Info, Filter, MoreHorizontal, Layers, ChevronDown,
@@ -813,7 +813,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
               : 'bg-white/80 hover:bg-white text-[#86868b] hover:text-[#1d1d1f] border border-black/5 shadow-2xs'
           }`}
         >
-          <Sparkles size={13} className="text-purple-500" />
+          <Paintbrush size={13} className="text-purple-500" />
           <span>Customizable</span>
           <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
             activeTabFilter === 'customizable' ? 'bg-white/20 text-white' : 'bg-black/5 text-[#86868b]'
@@ -1072,7 +1072,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
                   <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2 pointer-events-none">
                     {prod.is_customizable ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/95 text-[#0066FF] text-[10px] font-bold backdrop-blur-md border border-[#0066FF]/20 shadow-xs pointer-events-auto">
-                        <Sparkles size={11} className="text-[#0066FF]" />
+                        <Paintbrush size={11} className="text-[#0066FF]" />
                         <span>Customizable</span>
                       </span>
                     ) : <span />}
@@ -1133,7 +1133,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
                         }`}
                         title={prod.is_customizable ? 'Customizable: Logo Studio enabled. Click to disable.' : 'Standard: Non-customizable. Click to enable logo customization.'}
                       >
-                        <Sparkles size={11} className={prod.is_customizable ? 'text-indigo-600' : 'text-black/30'} />
+                        <Paintbrush size={11} className={prod.is_customizable ? 'text-indigo-600' : 'text-black/30'} />
                         <span>{prod.is_customizable ? 'Logo Studio' : 'Standard'}</span>
                       </button>
                     </div>
@@ -1385,7 +1385,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
                               )}
                               {prod.is_customizable && (
                                 <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200/60 text-[10px] font-bold" title="Supports visual logo placement canvas">
-                                  <Sparkles size={9} /> 3D Logo
+                                  <Paintbrush size={9} /> 3D Logo
                                 </span>
                               )}
                             </div>
@@ -1492,7 +1492,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
                               : 'Standard: Non-customizable. Click to enable custom logo branding.'
                           }
                         >
-                          <Sparkles size={11} className={prod.is_customizable ? 'text-indigo-600' : 'text-black/30'} />
+                          <Paintbrush size={11} className={prod.is_customizable ? 'text-indigo-600' : 'text-black/30'} />
                           {prod.is_customizable ? 'Customizable' : 'Off'}
                         </button>
                       </td>
@@ -1778,7 +1778,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
             onClick={() => handleBulkCustomizable(true)}
             className="px-3 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-[12px] font-semibold transition-all flex items-center gap-1.5"
           >
-            <Sparkles size={13} /> Customizable
+            <Paintbrush size={13} /> Customizable
           </button>
 
           <button
@@ -1857,7 +1857,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
                 { id: 'pricing', label: 'Pricing & Supply', icon: DollarSign },
                 { id: 'media', label: 'Images & Gallery', icon: ImageIcon },
                 { id: 'variants', label: `Color Variants (${formData.color_variants.length})`, icon: Palette },
-                { id: 'branding', label: 'Customizer Studio', icon: Sparkles },
+                { id: 'branding', label: 'Customizer Studio', icon: Paintbrush },
               ].map((tab) => {
                 const Icon = tab.icon
                 const isActive = activeTab === tab.id

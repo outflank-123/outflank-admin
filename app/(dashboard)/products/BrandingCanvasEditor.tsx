@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import {
-  Move, Maximize2, Sparkles, Sliders, RotateCcw, RotateCw,
+  Move, Maximize2, Paintbrush, Sliders, RotateCcw, RotateCw,
   AlignCenter, AlignVerticalSpaceAround, Eye, Type, Upload,
   Layers, Check, ChevronDown, ChevronUp, Image as ImageIcon
 } from 'lucide-react'
@@ -293,7 +293,7 @@ export default function BrandingCanvasEditor({
       <div className="bg-white p-4 sm:p-5 rounded-2xl border border-black/8 flex items-center justify-between shadow-2xs">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-neutral-100 text-neutral-800 flex items-center justify-center shrink-0">
-            <Sparkles size={18} />
+            <Paintbrush size={18} />
           </div>
           <div>
             <h3 className="text-[14px] font-bold text-[#1d1d1f]">3D Logo Studio & Custom Branding</h3>
