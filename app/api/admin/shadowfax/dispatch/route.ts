@@ -86,7 +86,8 @@ export async function POST(req: NextRequest) {
       customer_details: {
         name: order.customer_name,
         contact: order.customer_phone,
-        address_line_1: addr?.addressLine1 || addr?.address || (typeof addr === 'string' ? addr : 'N/A'),
+        address_line_1: addr?.addressLine1 || (addr?.houseNo ? `${addr.houseNo}, ${addr.street || ''}`.trim() : (addr?.address || (typeof addr === 'string' ? addr : 'N/A'))),
+        address_line_2: addr?.addressLine2 || addr?.landmark || '',
         city: addr?.city || 'Delhi',
         state: addr?.state || 'Delhi',
         pincode: customerPincode,

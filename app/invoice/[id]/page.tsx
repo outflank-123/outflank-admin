@@ -69,14 +69,32 @@ function extractCustomData(item: any, order: any): CustomDetail | null {
 
 function parseAddress(raw: any) {
   if (!raw) return { addressLine1: '', city: '', state: '', pincode: '' };
-  if (typeof raw === 'object') return raw;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    const match = raw.match(/-?\s*(\d{6})$/);
-    const pincode = match ? match[1] : '';
-    return { addressLine1: raw, city: '', state: '', pincode };
+  let obj = raw;
+  if (typeof raw === 'string') {
+    try {
+      obj = JSON.parse(raw);
+    } catch {
+      const match = raw.match(/-?\s*(\d{6})$/);
+      const pincode = match ? match[1] : '';
+      return { addressLine1: raw, city: '', state: '', pincode };
+    }
   }
+  if (typeof obj === 'object' && obj !== null) {
+    const houseNo = obj.houseNo || '';
+    const street = obj.street || '';
+    const landmark = obj.landmark || obj.addressLine2 || '';
+    const addressLine1 = obj.addressLine1 || (houseNo ? [houseNo, street].filter(Boolean).join(', ') : (obj.address || ''));
+    return {
+      ...obj,
+      houseNo,
+      street,
+      landmark,
+      addressLine1,
+      addressLine2: landmark,
+      address: obj.address || [addressLine1, landmark ? `Near ${landmark}` : ''].filter(Boolean).join(', '),
+    };
+  }
+  return { addressLine1: '', city: '', state: '', pincode: '' };
 }
 
 export default async function InvoicePage({ params }: any) {
@@ -231,7 +249,11 @@ export default async function InvoicePage({ params }: any) {
               <h2 className="font-bold text-gray-400 uppercase tracking-widest text-[10px] mb-2">Billed & Shipped To</h2>
               <p className="font-bold text-gray-900 text-sm mb-1">{order.customer_name}</p>
               <p className="text-gray-600 leading-relaxed">
-                {shippingAddress.addressLine1 || shippingAddress.address || '—'}<br />
+                {shippingAddress.addressLine1 || shippingAddress.address || '—'}
+                {shippingAddress.landmark || shippingAddress.addressLine2 ? (
+                  <span className="block text-gray-500 text-[11px]">Landmark: {shippingAddress.landmark || shippingAddress.addressLine2}</span>
+                ) : null}
+                <br />
                 {shippingAddress.city ? `${shippingAddress.city}, ` : ''}{shippingAddress.state || ''} {shippingAddress.pincode ? `- ${shippingAddress.pincode}` : ''}
               </p>
               <div className="mt-2 text-gray-600 space-y-0.5">

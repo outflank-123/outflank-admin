@@ -13,6 +13,7 @@ import {
 import { createProduct, updateProduct, deleteProduct, duplicateProduct, uploadProductImage, batchUpdateProducts } from '../actions'
 import Image from 'next/image'
 import BrandingCanvasEditor from './BrandingCanvasEditor'
+import { getAdminCache, setAdminCache } from '@/lib/adminCache'
 
 export interface ColorVariant {
   name: string
@@ -70,17 +71,24 @@ const BRANDING_PRESETS = [
 ]
 
 export default function ProductsClient({ initialProducts, categories }: ProductsClientProps) {
-  const [products, setProducts] = useState<Product[]>(initialProducts)
+  const [products, setProducts] = useState<Product[]>(() => {
+    if (initialProducts && initialProducts.length > 0) return initialProducts
+    const cached = getAdminCache<Product[]>('outflank_admin_products', 10 * 60 * 1000, 'session')
+    return cached?.data || initialProducts
+  })
   const [baselineProducts, setBaselineProducts] = useState<Product[]>(initialProducts)
   const [pendingChanges, setPendingChanges] = useState<Record<string, Record<string, any>>>({})
   const [isSavingBatch, setIsSavingBatch] = useState(false)
   const [showSavedToast, setShowSavedToast] = useState(false)
 
-  // Sync baseline if initialProducts change from external revalidation
+  // Sync baseline if initialProducts change from external revalidation and persist to cache
   useEffect(() => {
-    setProducts(initialProducts)
-    setBaselineProducts(initialProducts)
-    setPendingChanges({})
+    if (initialProducts && initialProducts.length > 0) {
+      setProducts(initialProducts)
+      setBaselineProducts(initialProducts)
+      setPendingChanges({})
+      setAdminCache('outflank_admin_products', initialProducts, 'session')
+    }
   }, [initialProducts])
 
   const pendingCount = Object.keys(pendingChanges).length
@@ -1002,13 +1010,13 @@ export default function ProductsClient({ initialProducts, categories }: Products
                 }`}
               >
                 {/* Product Image Area */}
-                <div className="relative aspect-square w-full bg-[#f8f8fa] overflow-hidden">
+                <div className="relative aspect-square w-full bg-white border-b border-black/5 overflow-hidden">
                   {prod.primary_image_url ? (
                     <Image
                       src={prod.primary_image_url}
                       alt={prod.name}
                       fill
-                      className="object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="object-contain p-2 transition-transform duration-500 group-hover:scale-105"
                       unoptimized
                     />
                   ) : (
@@ -1358,10 +1366,10 @@ export default function ProductsClient({ initialProducts, categories }: Products
                         <div className="flex items-center gap-3">
                           <div
                             onClick={() => openEditModal(prod)}
-                            className="relative w-12 h-12 rounded-xl bg-[#f5f5f7] overflow-hidden shrink-0 border border-black/5 shadow-2xs cursor-pointer group-hover:scale-105 transition-transform"
+                            className="relative w-12 h-12 rounded-xl bg-white overflow-hidden shrink-0 border border-black/5 shadow-2xs cursor-pointer group-hover:scale-105 transition-transform p-0.5"
                           >
                             {prod.primary_image_url ? (
-                              <Image src={prod.primary_image_url} alt="" fill className="object-cover" unoptimized />
+                              <Image src={prod.primary_image_url} alt="" fill className="object-contain p-0.5" unoptimized />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-black/20">
                                 <ImageIcon size={20} />
@@ -2272,7 +2280,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
                                   isPrimary ? 'ring-2 ring-[#e3231c] border-transparent' : 'border-black/10'
                                 }`}
                               >
-                                <Image src={url} alt="" fill className="object-cover" unoptimized />
+                                <Image src={url} alt="" fill className="object-contain p-1" unoptimized />
 
                                 {isPrimary && (
                                   <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-[#e3231c] text-white text-[10px] font-bold uppercase tracking-wider shadow-md">

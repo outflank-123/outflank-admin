@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Users, ShieldAlert, CheckCircle2, XCircle, Trash2, Edit2 } from 'lucide-react'
+import { getAdminCache, setAdminCache } from '@/lib/adminCache'
 
 interface User {
   id: string
@@ -27,12 +28,25 @@ export default function AdminUsersPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (force = false) => {
+    // 1. Instant Cache Check
+    const cached = getAdminCache<User[]>('outflank_admin_users', 5 * 60 * 1000, 'session')
+    if (cached?.data) {
+      setUsers(cached.data)
+      setLoading(false)
+      if (!cached.isStale && !force) {
+        return // Instant 0ms load!
+      }
+    } else {
+      setLoading(true)
+    }
+
     try {
       const res = await fetch('/api/users')
       if (res.ok) {
         const data = await res.json()
         setUsers(data.users)
+        setAdminCache('outflank_admin_users', data.users, 'session')
       }
     } catch (err) {
       console.error('Failed to fetch users', err)

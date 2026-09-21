@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getAdminCache, setAdminCache } from '@/lib/adminCache'
 
 export interface CustomizationData {
   is_customized?: boolean
@@ -102,13 +103,33 @@ export function hasCustomItems(order: Order): boolean {
 // Parse address from JSON string or object
 function parseAddress(raw: any) {
   if (!raw) return null
-  if (typeof raw === 'object') return raw
-  try { return JSON.parse(raw) } catch { 
-    // Fallback for old string addresses: try to extract pincode from the end
-    const match = raw.match(/-?\\s*(\\d{6})$/)
-    const pincode = match ? match[1] : ''
-    return { addressLine1: raw, pincode } 
+  let obj = raw
+  if (typeof raw === 'string') {
+    try {
+      obj = JSON.parse(raw)
+    } catch {
+      const match = raw.match(/-?\s*(\d{6})$/)
+      const pincode = match ? match[1] : ''
+      return { addressLine1: raw, pincode }
+    }
   }
+  if (typeof obj === 'object' && obj !== null) {
+    const houseNo = obj.houseNo || ''
+    const street = obj.street || ''
+    const landmark = obj.landmark || obj.addressLine2 || ''
+    const addressLine1 = obj.addressLine1 || (houseNo ? [houseNo, street].filter(Boolean).join(', ') : (obj.address || ''))
+    const addressLine2 = landmark
+    return {
+      ...obj,
+      houseNo,
+      street,
+      landmark,
+      addressLine1,
+      addressLine2,
+      address: obj.address || [addressLine1, landmark ? `Near ${landmark}` : ''].filter(Boolean).join(', '),
+    }
+  }
+  return null
 }
 
 // Shadowfax status to human-readable
@@ -119,7 +140,7 @@ function sfxStatusLabel(status: string | null | undefined) {
     received_from_client_warehouse: { label: 'Picked Up', color: 'bg-indigo-100 text-indigo-700' },
     assigned_for_delivery: { label: 'Assigned for Delivery', color: 'bg-violet-100 text-violet-700' },
     ofd: { label: 'Out for Delivery', color: 'bg-amber-100 text-amber-700' },
-    delivered: { label: 'Delivered ✓', color: 'bg-green-100 text-green-700' },
+    delivered: { label: 'Delivered', color: 'bg-green-100 text-green-700' },
     cancelled_by_customer: { label: 'Cancelled', color: 'bg-red-100 text-red-700' },
     rto: { label: 'Return Initiated', color: 'bg-orange-100 text-orange-700' },
     rto_d: { label: 'Returned', color: 'bg-orange-100 text-orange-700' },
@@ -129,7 +150,26 @@ function sfxStatusLabel(status: string | null | undefined) {
 }
 
 export default function OrdersTableClient({ initialOrders }: { initialOrders: Order[] }) {
-  const [orders, setOrders] = useState<Order[]>(initialOrders)
+  const [orders, setOrders] = useState<Order[]>(() => {
+    if (initialOrders && initialOrders.length > 0) return initialOrders
+    const cached = getAdminCache<Order[]>('outflank_admin_orders', 10 * 60 * 1000, 'session')
+    return cached?.data || initialOrders
+  })
+
+  // Sync server prop to state & cache
+  useEffect(() => {
+    if (initialOrders && initialOrders.length > 0) {
+      setOrders(initialOrders)
+      setAdminCache('outflank_admin_orders', initialOrders, 'session')
+    }
+  }, [initialOrders])
+
+  // Persist order state modifications
+  useEffect(() => {
+    if (orders && orders.length > 0) {
+      setAdminCache('outflank_admin_orders', orders, 'session')
+    }
+  }, [orders])
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
   const [liveStatus, setLiveStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting')
@@ -168,7 +208,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
       text = `Hi ${customerName}, contacting you from Outflank regarding your Order #${shortId}. How can we assist you today?`
     } else if (type === 'tracking') {
       if (awb) {
-        text = `Hi ${customerName}, your Outflank Order #${shortId} has been dispatched with Shadowfax! 📦\n\nTracking AWB: ${awb}\nTrack your delivery here: https://tracker.shadowfax.in/track?order_id=${awb}\n\nThank you for choosing Outflank!`
+        text = `Hi ${customerName}, your Outflank Order #${shortId} has been dispatched with Shadowfax!\n\nTracking AWB: ${awb}\nTrack your delivery here: https://tracker.shadowfax.in/track?order_id=${awb}\n\nThank you for choosing Outflank!`
       } else {
         text = `Hi ${customerName}, your Outflank Order #${shortId} is currently being packed at our facility. We will share your live tracking link as soon as it departs!`
       }
@@ -179,6 +219,59 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
     }
 
     return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(text)}`
+  }
+
+  // Bulk WhatsApp Selection & Broadcast State
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([])
+  const [bulkModalOpen, setBulkModalOpen] = useState(false)
+  const [bulkTemplateType, setBulkTemplateType] = useState<'tracking' | 'artwork' | 'invoice' | 'custom'>('tracking')
+  const [bulkCustomMessage, setBulkCustomMessage] = useState('Hi {customer_name}, thank you for your order with Outflank! Your Order #{order_id} is being processed.')
+  const [bulkSending, setBulkSending] = useState(false)
+  const [bulkResult, setBulkResult] = useState<{ total: number; sentCount: number; failedCount: number; skippedCount: number; results: any[] } | null>(null)
+  const [bulkError, setBulkError] = useState<string | null>(null)
+
+  const toggleSelectAll = () => {
+    if (filteredOrders.length > 0 && selectedOrderIds.length === filteredOrders.length) {
+      setSelectedOrderIds([])
+    } else {
+      setSelectedOrderIds(filteredOrders.map(o => o.id))
+    }
+  }
+
+  const toggleSelectOrder = (id: string) => {
+    setSelectedOrderIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    )
+  }
+
+  const handleSendBulkWhatsApp = async () => {
+    if (selectedOrderIds.length === 0) return
+    setBulkSending(true)
+    setBulkError(null)
+    setBulkResult(null)
+
+    try {
+      const res = await fetch('/api/admin/whatsapp/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderIds: selectedOrderIds,
+          templateType: bulkTemplateType,
+          customMessage: bulkCustomMessage,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        setBulkError(data.error || 'Failed to dispatch bulk WhatsApp messages')
+      } else {
+        setBulkResult(data)
+      }
+    } catch (err: any) {
+      setBulkError(err.message || 'Network exception while broadcasting WhatsApp messages')
+    } finally {
+      setBulkSending(false)
+    }
   }
 
   const downloadLogo = async (url: string, filename: string) => {
@@ -254,9 +347,12 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
         body: JSON.stringify({ orderId: order.id, status: newStatus })
       })
       if (!res.ok) throw new Error('Failed to update')
+      const updated = orders.map(o => o.id === order.id ? { ...o, status: newStatus } : o)
+      setAdminCache('outflank_admin_orders', updated, 'session')
       router.refresh()
     } catch {
       setOrders(previousOrders)
+      setAdminCache('outflank_admin_orders', previousOrders, 'session')
       alert('Failed to update order status.')
     } finally {
       setUpdatingId(null)
@@ -284,11 +380,15 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
       const data = await res.json()
       if (!res.ok) { setDispatchError(data.error || 'Dispatch failed.'); return }
       setDispatchSuccess(data.awb_number)
-      setOrders(prev => prev.map(o =>
-        o.id === dispatchOrder.id
-          ? { ...o, status: 'shipped', awb_number: data.awb_number, shadowfax_status: 'new', dispatched_at: new Date().toISOString() }
-          : o
-      ))
+      setOrders(prev => {
+        const updated = prev.map(o =>
+          o.id === dispatchOrder.id
+            ? { ...o, status: 'shipped', awb_number: data.awb_number, shadowfax_status: 'new', dispatched_at: new Date().toISOString() }
+            : o
+        )
+        setAdminCache('outflank_admin_orders', updated, 'session')
+        return updated
+      })
     } catch { setDispatchError('Network error. Please try again.') }
     finally { setDispatching(false) }
   }
@@ -372,7 +472,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
       {newOrderAlert && (
         <div className="flex items-center gap-3 px-5 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 font-medium text-sm">
           <Package size={16} className="text-emerald-600 shrink-0" />
-          <span>🎉 {newOrderAlert} The table has been refreshed.</span>
+          <span>{newOrderAlert} The table has been refreshed.</span>
         </div>
       )}
 
@@ -444,8 +544,18 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
           <table className="min-w-full divide-y divide-gray-300">
             <thead className="bg-gray-50">
               <tr>
-                <th className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6 w-10"></th>
-                <th className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">Order Details</th>
+                <th className="py-3.5 pl-4 pr-1 text-left sm:pl-6 w-14">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={filteredOrders.length > 0 && selectedOrderIds.length === filteredOrders.length}
+                      onChange={toggleSelectAll}
+                      aria-label="Select all orders"
+                      className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                    />
+                  </div>
+                </th>
+                <th className="py-3.5 pl-2 pr-3 text-left text-sm font-semibold text-gray-900">Order Details</th>
                 <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Customer</th>
                 <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Payment</th>
                 <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
@@ -468,9 +578,21 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                       className={`hover:bg-gray-50 transition-colors cursor-pointer ${expandedOrderId === order.id ? 'bg-gray-50' : ''}`}
                       onClick={() => toggleExpand(order.id)}
                     >
-                      <td className="py-4 pl-4 pr-3 sm:pl-6">
-                        <div className="text-gray-400 transition-transform duration-200" style={{ transform: expandedOrderId === order.id ? 'rotate(90deg)' : 'none' }}>
-                          <ChevronRight size={18} />
+                      <td className="py-4 pl-4 pr-1 sm:pl-6">
+                        <div className="flex items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={selectedOrderIds.includes(order.id)}
+                            onChange={(e) => {
+                              e.stopPropagation()
+                              toggleSelectOrder(order.id)
+                            }}
+                            aria-label={`Select order ${order.id}`}
+                            className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                          />
+                          <div className="text-gray-400 transition-transform duration-200" style={{ transform: expandedOrderId === order.id ? 'rotate(90deg)' : 'none' }}>
+                            <ChevronRight size={18} />
+                          </div>
                         </div>
                       </td>
                       <td className="whitespace-nowrap py-4 pl-0 pr-3">
@@ -1006,6 +1128,9 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                                       return addr ? (
                                         <div className="space-y-1 text-xs text-gray-700">
                                           <p className="font-medium leading-relaxed">{addr.addressLine1 || addr.address}</p>
+                                          {(addr.landmark || addr.addressLine2) && (
+                                            <p className="text-gray-500 text-[11px] font-medium">Landmark: {addr.landmark || addr.addressLine2}</p>
+                                          )}
                                           {(addr.city || addr.state) && (
                                             <p className="text-gray-500 font-medium">
                                               {addr.city}{addr.state ? `, ${addr.state}` : ''}
@@ -1104,7 +1229,15 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                     <p className="text-sm text-gray-500">{dispatchOrder.customer_phone}</p>
                     {(() => {
                       const addr = parseAddress(dispatchOrder.shipping_address)
-                      return addr ? <p className="text-sm text-gray-500">{addr.addressLine1}, {addr.city} — {addr.pincode}</p> : null
+                      return addr ? (
+                        <div className="mt-1 space-y-0.5 text-sm text-gray-600">
+                          <p>{addr.addressLine1}</p>
+                          {(addr.landmark || addr.addressLine2) && (
+                            <p className="text-xs text-gray-500">Landmark: {addr.landmark || addr.addressLine2}</p>
+                          )}
+                          <p className="font-medium text-gray-800">{addr.city}{addr.state ? `, ${addr.state}` : ''} — {addr.pincode}</p>
+                        </div>
+                      ) : null
                     })()}
                   </div>
 
@@ -1285,9 +1418,9 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
               {/* Quality Checklist & Operator Sign-off */}
               <div className="border-t pt-4 flex justify-between items-center text-xs text-gray-500">
                 <div className="space-y-1">
-                  <p>✓ Garment Inspection Passed</p>
-                  <p>✓ Logo Scaled to Print Template</p>
-                  <p>✓ Imprint Color Match Verified</p>
+                  <p className="flex items-center gap-1.5"><Check size={12} className="text-emerald-600" /> Garment Inspection Passed</p>
+                  <p className="flex items-center gap-1.5"><Check size={12} className="text-emerald-600" /> Logo Scaled to Print Template</p>
+                  <p className="flex items-center gap-1.5"><Check size={12} className="text-emerald-600" /> Imprint Color Match Verified</p>
                 </div>
                 <div className="text-right">
                   <div className="w-36 border-b border-gray-400 h-8 mb-1"></div>
@@ -1425,7 +1558,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                       typeof invoiceModalOrder.shipping_address === 'string' && invoiceModalOrder.shipping_address.startsWith('{') ? (() => {
                         try {
                           const a = JSON.parse(invoiceModalOrder.shipping_address)
-                          return `${a.addressLine1 || a.address || ''}, ${a.city || ''} ${a.state || ''} ${a.pincode || ''}`
+                          return `${a.addressLine1 || a.address || ''}${a.landmark || a.addressLine2 ? ', Near ' + (a.landmark || a.addressLine2) : ''}, ${a.city || ''} ${a.state || ''} ${a.pincode || ''}`
                         } catch {
                           return invoiceModalOrder.shipping_address
                         }
@@ -1606,6 +1739,299 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                 <span>Download Print File</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Floating Bulk Actions Bar ─── */}
+      {selectedOrderIds.length > 0 && (
+        <div className="fixed bottom-7 left-1/2 -translate-x-1/2 z-40 bg-gray-950/95 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-4 border border-white/10 animate-in fade-in slide-in-from-bottom-5 duration-200">
+          <div className="flex items-center gap-2 text-xs font-bold">
+            <span className="w-5 h-5 rounded-full bg-emerald-500 text-black flex items-center justify-center text-[11px] font-black">
+              {selectedOrderIds.length}
+            </span>
+            <span>Selected</span>
+          </div>
+
+          <div className="h-4 w-px bg-white/20" />
+
+          <button
+            type="button"
+            onClick={() => {
+              setBulkResult(null)
+              setBulkError(null)
+              setBulkModalOpen(true)
+            }}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-black text-xs font-extrabold transition-all shadow-md shadow-[#25D366]/20 cursor-pointer"
+          >
+            <MessageCircle size={15} className="fill-black/10" />
+            <span>Bulk WhatsApp Broadcast</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedOrderIds([])}
+            className="text-xs text-gray-400 hover:text-white transition-colors cursor-pointer"
+          >
+            Deselect All
+          </button>
+        </div>
+      )}
+
+      {/* ─── Bulk WhatsApp Broadcast Modal ─── */}
+      {bulkModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+          onClick={() => !bulkSending && setBulkModalOpen(false)}
+        >
+          <div 
+            className="relative max-w-xl w-full bg-white rounded-3xl p-6 shadow-2xl flex flex-col gap-5 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                  <MessageCircle size={22} className="fill-white/20" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-gray-900 flex items-center gap-2">
+                    Bulk WhatsApp Broadcast
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Meta Cloud API
+                    </span>
+                  </h3>
+                  <p className="text-xs text-gray-500 font-medium mt-0.5">
+                    Targeting <strong className="text-gray-900">{selectedOrderIds.length}</strong> selected order{selectedOrderIds.length > 1 ? 's' : ''}
+                  </p>
+                </div>
+              </div>
+
+              {!bulkSending && (
+                <button
+                  type="button"
+                  onClick={() => setBulkModalOpen(false)}
+                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-900 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
+            {/* If result already returned, show outcome report */}
+            {bulkResult ? (
+              <div className="space-y-4 py-2">
+                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex items-start gap-3">
+                  <CheckCircle2 size={22} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-sm">Broadcast Completed!</h4>
+                    <p className="text-xs text-emerald-800 mt-1">
+                      Successfully dispatched <strong>{bulkResult.sentCount}</strong> message{bulkResult.sentCount !== 1 ? 's' : ''}.
+                      {bulkResult.failedCount > 0 && ` ${bulkResult.failedCount} failed.`}
+                      {bulkResult.skippedCount > 0 && ` ${bulkResult.skippedCount} skipped (missing valid phone number).`}
+                    </p>
+                  </div>
+                </div>
+
+                {/* List of dispatches */}
+                <div className="max-h-56 overflow-y-auto space-y-1.5 p-1">
+                  {bulkResult.results.map((r, i) => (
+                    <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 text-xs border border-gray-100">
+                      <div className="min-w-0 pr-2">
+                        <p className="font-bold text-gray-900 truncate">{r.customerName} (#{r.orderId.slice(0, 8).toUpperCase()})</p>
+                        <p className="text-[11px] text-gray-500 font-mono">{r.phone}</p>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        r.status === 'sent' 
+                          ? 'bg-emerald-100 text-emerald-800' 
+                          : r.status === 'skipped'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {r.status === 'sent' ? 'Sent' : r.status === 'skipped' ? 'Skipped' : 'Failed'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBulkModalOpen(false)
+                      setSelectedOrderIds([])
+                      setBulkResult(null)
+                    }}
+                    className="px-5 py-2.5 rounded-xl bg-gray-900 hover:bg-black text-white text-xs font-bold transition-all cursor-pointer"
+                  >
+                    Close &amp; Clear Selection
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {bulkError && (
+                  <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2.5">
+                    <AlertTriangle size={16} className="shrink-0 mt-0.5 text-red-600" />
+                    <div>
+                      <p className="font-bold">Broadcast Notice</p>
+                      <p className="mt-0.5 leading-relaxed">{bulkError}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Template Selection */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block">
+                    Select Message Template
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {/* Option 1: Tracking */}
+                    <button
+                      type="button"
+                      onClick={() => setBulkTemplateType('tracking')}
+                      className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
+                        bulkTemplateType === 'tracking'
+                          ? 'border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/20'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="p-1.5 rounded-lg bg-blue-100 text-blue-700">
+                          <Truck size={15} />
+                        </div>
+                        <span className="font-bold text-xs text-gray-900">Tracking &amp; AWB Dispatch</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 leading-snug">
+                        Sends personalized Shadowfax AWB and live tracker link to each customer.
+                      </p>
+                    </button>
+
+                    {/* Option 2: Artwork Request */}
+                    <button
+                      type="button"
+                      onClick={() => setBulkTemplateType('artwork')}
+                      className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
+                        bulkTemplateType === 'artwork'
+                          ? 'border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/20'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="p-1.5 rounded-lg bg-purple-100 text-purple-700">
+                          <Paintbrush size={15} />
+                        </div>
+                        <span className="font-bold text-xs text-gray-900">Request High-Res Logo</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 leading-snug">
+                        Follow-up with custom print customers to send vector/PNG logos for printing.
+                      </p>
+                    </button>
+
+                    {/* Option 3: Tax Invoice */}
+                    <button
+                      type="button"
+                      onClick={() => setBulkTemplateType('invoice')}
+                      className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
+                        bulkTemplateType === 'invoice'
+                          ? 'border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/20'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="p-1.5 rounded-lg bg-amber-100 text-amber-700">
+                          <FileText size={15} />
+                        </div>
+                        <span className="font-bold text-xs text-gray-900">Tax Invoice / Summary</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 leading-snug">
+                        Sends digital invoice notification and order total confirmation.
+                      </p>
+                    </button>
+
+                    {/* Option 4: Custom Message */}
+                    <button
+                      type="button"
+                      onClick={() => setBulkTemplateType('custom')}
+                      className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
+                        bulkTemplateType === 'custom'
+                          ? 'border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/20'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
+                          <MessageCircle size={15} />
+                        </div>
+                        <span className="font-bold text-xs text-gray-900">Custom Announcement</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 leading-snug">
+                        Compose a personalized message using customer and order tags.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* If Custom Message selected, show textarea */}
+                {bulkTemplateType === 'custom' && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-700 flex items-center justify-between">
+                      <span>Message Text</span>
+                      <span className="text-[10px] text-gray-400 font-normal">
+                        Tags: {"{customer_name}"}, {"{order_id}"}, {"{total}"}
+                      </span>
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={bulkCustomMessage}
+                      onChange={e => setBulkCustomMessage(e.target.value)}
+                      placeholder="Write your broadcast message here..."
+                      className="w-full text-xs p-3 rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-500 transition-colors"
+                    />
+                  </div>
+                )}
+
+                {/* Selected Audience Preview */}
+                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between text-xs">
+                  <div className="text-gray-600">
+                    <strong className="text-gray-900">{selectedOrderIds.length} orders</strong> selected for broadcast.
+                  </div>
+                  <div className="text-[11px] text-gray-500 font-medium">
+                    Paced at ~150ms / msg
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    disabled={bulkSending}
+                    onClick={() => setBulkModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={bulkSending}
+                    onClick={handleSendBulkWhatsApp}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] disabled:opacity-50 text-black text-xs font-black transition-all shadow-md shadow-[#25D366]/20 cursor-pointer"
+                  >
+                    {bulkSending ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" />
+                        <span>Broadcasting via Meta API...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send size={14} className="fill-black" />
+                        <span>Send WhatsApp Broadcast ({selectedOrderIds.length})</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

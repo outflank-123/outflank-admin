@@ -66,8 +66,42 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { id, status, notes, name, company, email, phone, requirements } = body
 
+  // Support batch updates (e.g. from Drag & Drop canvas save)
+  if (Array.isArray(body.updates)) {
+    const admin = createAdminClient()
+    const updatedLeads = []
+    for (const item of body.updates) {
+      if (!item.id) continue
+      const updateData: Record<string, any> = {}
+      if (item.status) updateData.status = item.status
+      if (item.notes !== undefined) updateData.notes = item.notes
+      if (item.name) updateData.name = item.name
+      if (item.company) updateData.company = item.company
+      if (item.email) updateData.email = item.email
+      if (item.phone !== undefined) updateData.phone = item.phone
+      if (item.requirements !== undefined) updateData.requirements = item.requirements
+      updateData.updated_at = new Date().toISOString()
+
+      const { data, error } = await admin
+        .from('leads')
+        .update(updateData)
+        .eq('id', item.id)
+        .select()
+        .single()
+
+      if (!error && data) {
+        updatedLeads.push(data)
+      } else if (error) {
+        console.error(`[PATCH /api/admin/leads] Error updating lead ${item.id}:`, error)
+      }
+    }
+
+    return NextResponse.json({ success: true, count: updatedLeads.length, leads: updatedLeads })
+  }
+
+  // Single lead update
+  const { id, status, notes, name, company, email, phone, requirements } = body
   if (!id) return NextResponse.json({ error: 'Lead ID required' }, { status: 400 })
 
   const admin = createAdminClient()
@@ -79,6 +113,7 @@ export async function PATCH(request: NextRequest) {
   if (email) updateData.email = email
   if (phone !== undefined) updateData.phone = phone
   if (requirements !== undefined) updateData.requirements = requirements
+  updateData.updated_at = new Date().toISOString()
 
   const { data, error } = await admin
     .from('leads')

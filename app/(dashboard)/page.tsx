@@ -8,6 +8,8 @@ const STATUS_CONFIG = {
   closed:    { label: 'Closed',    color: 'bg-slate-50 text-slate-500 border-slate-200',  icon: XCircle },
 }
 
+export const revalidate = 60
+
 export default async function AdminDashboard() {
   const supabase = await createClient()
 

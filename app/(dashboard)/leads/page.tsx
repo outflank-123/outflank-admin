@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   title: 'Sales CRM | Outflank Admin',
 }
 
+export const revalidate = 60
+
 interface LeadsPageProps {
   searchParams: Promise<{ status?: string; q?: string }>
 }

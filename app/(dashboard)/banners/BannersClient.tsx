@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { Plus, Edit2, Trash2, Image as ImageIcon, X, Loader2, Link as LinkIcon, MoveUp, MoveDown } from 'lucide-react'
 import { createBanner, updateBanner, deleteBanner, uploadProductImage } from '../actions'
 import Image from 'next/image'
+import { getAdminCache, setAdminCache } from '@/lib/adminCache'
 
 interface Banner {
   id: string
@@ -16,7 +17,18 @@ interface Banner {
 }
 
 export default function BannersClient({ initialBanners }: { initialBanners: Banner[] }) {
-  const [banners, setBanners] = useState<Banner[]>(initialBanners)
+  const [banners, setBanners] = useState<Banner[]>(() => {
+    if (initialBanners && initialBanners.length > 0) return initialBanners
+    const cached = getAdminCache<Banner[]>('outflank_admin_banners', 10 * 60 * 1000, 'session')
+    return cached?.data || initialBanners
+  })
+
+  useEffect(() => {
+    if (initialBanners && initialBanners.length > 0) {
+      setBanners(initialBanners)
+      setAdminCache('outflank_admin_banners', initialBanners, 'session')
+    }
+  }, [initialBanners])
   const [isPending, startTransition] = useTransition()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null)

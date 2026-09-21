@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { verifyAdmin } from '@/lib/supabase/server'
 
 /**
  * GET /api/admin/shipping-label?orderId=xxx
  * Returns a printable HTML shipping label for the order.
  */
 export async function GET(req: NextRequest) {
+  const { isAdmin } = await verifyAdmin()
+  if (!isAdmin) return new NextResponse('Unauthorized: Admin access required', { status: 401 })
+
   const orderId = req.nextUrl.searchParams.get('orderId')
   if (!orderId) return new NextResponse('Missing orderId', { status: 400 })
 
@@ -212,7 +216,8 @@ export async function GET(req: NextRequest) {
           <div class="address-block">
             <p class="name">${order.customer_name}</p>
             <p class="phone">📞 ${order.customer_phone}</p>
-            <p>${typeof addr === 'object' ? addr.addressLine1 || addr.address || '' : addr}</p>
+            <p>${typeof addr === 'object' ? (addr.addressLine1 || (addr.houseNo ? `${addr.houseNo}, ${addr.street || ''}` : (addr.address || ''))) : addr}</p>
+            ${typeof addr === 'object' && (addr.addressLine2 || addr.landmark) ? `<p style="color:#555;font-size:12px;">Landmark: ${addr.addressLine2 || addr.landmark}</p>` : ''}
             <p>${typeof addr === 'object' ? `${addr.city || ''}, ${addr.state || ''}` : ''}</p>
             <p style="font-weight:700;">PIN: ${typeof addr === 'object' ? addr.pincode || '' : ''}</p>
           </div>

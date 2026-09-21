@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { Plus, Edit2, Trash2, Search, Tag, X } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
+import { getAdminCache, setAdminCache } from '@/lib/adminCache'
 
 const DynamicIcon = ({ name, size = 24, className = '' }: { name?: string | null, size?: number, className?: string }) => {
   if (!name) return <Tag size={size} className={className} />
@@ -22,7 +23,18 @@ interface Category {
 }
 
 export default function CategoriesClient({ initialCategories }: { initialCategories: Category[] }) {
-  const [categories] = useState<Category[]>(initialCategories)
+  const [categories, setCategories] = useState<Category[]>(() => {
+    if (initialCategories && initialCategories.length > 0) return initialCategories
+    const cached = getAdminCache<Category[]>('outflank_admin_categories', 10 * 60 * 1000, 'session')
+    return cached?.data || initialCategories
+  })
+
+  useEffect(() => {
+    if (initialCategories && initialCategories.length > 0) {
+      setCategories(initialCategories)
+      setAdminCache('outflank_admin_categories', initialCategories, 'session')
+    }
+  }, [initialCategories])
   const [search, setSearch] = useState('')
   const [isPending, startTransition] = useTransition()
   

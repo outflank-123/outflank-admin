@@ -34,15 +34,37 @@ export async function GET() {
       })
     }
 
+    // Check if caller is an authenticated admin
+    const { data: { user } } = await supabase.auth.getUser()
+    let isAdmin = false
+    if (user) {
+      const { data: profile } = await supabase.from('admin_profiles').select('role').eq('id', user.id).single()
+      if (profile && ['admin', 'junior', 'super_admin'].includes(profile.role)) {
+        isAdmin = true
+      }
+    }
+
+    if (isAdmin) {
+      return NextResponse.json({
+        ...data,
+        whatsapp_support_phone: data.whatsapp_support_phone || '919999926273',
+        whatsapp_admin_alerts_phone: data.whatsapp_admin_alerts_phone || '919999926273',
+        whatsapp_notifications_enabled: Boolean(data.whatsapp_notifications_enabled),
+        whatsapp_provider: data.whatsapp_provider || 'meta_cloud',
+        whatsapp_phone_number_id: data.whatsapp_phone_number_id || '',
+        whatsapp_business_account_id: data.whatsapp_business_account_id || '',
+        whatsapp_access_token: data.whatsapp_access_token || '',
+      })
+    }
+
+    // Public / Non-admin payload: omit sensitive credentials
     return NextResponse.json({
-      ...data,
+      is_cod_enabled: data.is_cod_enabled ?? true,
+      cod_min_amount: data.cod_min_amount ?? 500,
+      free_shipping_threshold: data.free_shipping_threshold ?? 2000,
+      flat_shipping_rate: data.flat_shipping_rate ?? 100,
       whatsapp_support_phone: data.whatsapp_support_phone || '919999926273',
-      whatsapp_admin_alerts_phone: data.whatsapp_admin_alerts_phone || '919999926273',
       whatsapp_notifications_enabled: Boolean(data.whatsapp_notifications_enabled),
-      whatsapp_provider: data.whatsapp_provider || 'meta_cloud',
-      whatsapp_phone_number_id: data.whatsapp_phone_number_id || '',
-      whatsapp_business_account_id: data.whatsapp_business_account_id || '',
-      whatsapp_access_token: data.whatsapp_access_token || '',
     })
   } catch (error) {
     console.error('API Error:', error)

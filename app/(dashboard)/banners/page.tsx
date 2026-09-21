@@ -6,6 +6,8 @@ export const metadata = {
   title: 'Banners | Admin',
 }
 
+export const revalidate = 60
+
 export default async function BannersAdminPage() {
   const supabase = await createClient()
 

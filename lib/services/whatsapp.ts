@@ -94,11 +94,17 @@ export async function sendWhatsAppMessage({
   messageText,
   templateName,
   templateParams = [],
+  mediaUrl,
+  linkUrl,
+  buttonText,
 }: {
   to: string;
   messageText: string;
   templateName?: string;
   templateParams?: string[];
+  mediaUrl?: string;
+  linkUrl?: string;
+  buttonText?: string;
 }): Promise<{ success: boolean; error?: string; messageId?: string }> {
   const formattedPhone = formatWhatsAppPhone(to);
   if (!formattedPhone) {
@@ -109,6 +115,12 @@ export async function sendWhatsAppMessage({
 
   if (!settings.whatsapp_notifications_enabled && process.env.NODE_ENV === 'production') {
     return { success: false, error: 'WhatsApp automated notifications are disabled in settings' };
+  }
+
+  // Compose text with link if provided and not already in message
+  let composedText = messageText;
+  if (linkUrl && !messageText.includes(linkUrl)) {
+    composedText = `${messageText}\n\n${buttonText || 'Visit Now'}: ${linkUrl}`;
   }
 
   // ── 1. Meta Cloud API (Official Graph API) ──
@@ -136,6 +148,14 @@ export async function sendWhatsAppMessage({
             name: templateName,
             language: { code: 'en' },
             components: [
+              ...(mediaUrl
+                ? [
+                    {
+                      type: 'header',
+                      parameters: [{ type: 'image', image: { link: mediaUrl } }],
+                    },
+                  ]
+                : []),
               {
                 type: 'body',
                 parameters: templateParams.map(param => ({
@@ -146,13 +166,24 @@ export async function sendWhatsAppMessage({
             ],
           },
         };
+      } else if (mediaUrl) {
+        payload = {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: formattedPhone,
+          type: 'image',
+          image: {
+            link: mediaUrl,
+            caption: composedText,
+          },
+        };
       } else {
         payload = {
           messaging_product: 'whatsapp',
           recipient_type: 'individual',
           to: formattedPhone,
           type: 'text',
-          text: { preview_url: true, body: messageText },
+          text: { preview_url: true, body: composedText },
         };
       }
 
@@ -238,13 +269,13 @@ export async function sendOrderPlacedNotification({
     const invoiceUrl = `${siteUrl}/invoice/${order.id}`;
 
     const textBody = 
-      `🎉 *Order Confirmed!* (Order ${orderRef})\n\n` +
+      `*Order Confirmed* (Order ${orderRef})\n\n` +
       `Hi ${customerName},\n` +
       `Thank you for choosing Outflank! Your order for ${totalAmount} has been confirmed.\n\n` +
-      `📦 *Status:* In Production\n` +
-      `📄 *View Tax Invoice:* ${invoiceUrl}\n` +
-      `🚚 *Track Live:* ${trackUrl}\n\n` +
-      `We'll notify you as soon as your package is dispatched!`;
+      `*Status:* In Production\n` +
+      `*View Tax Invoice:* ${invoiceUrl}\n` +
+      `*Track Live:* ${trackUrl}\n\n` +
+      `We will notify you as soon as your package is dispatched!`;
 
     // 1. Send to Customer
     sendWhatsAppMessage({
@@ -286,11 +317,11 @@ export async function sendOrderShippedNotification({
     const trackUrl = `https://shadowfax.in/tracking/${awbNumber}`;
 
     const textBody = 
-      `🚚 *Your Outflank Order Has Shipped!*\n\n` +
+      `*Your Outflank Order Has Shipped*\n\n` +
       `Hi ${customerName},\n` +
       `Great news! Your order ${orderRef} has been dispatched via *${courierName}*.\n\n` +
-      `📦 *Tracking AWB:* ${awbNumber}\n` +
-      `📍 *Track Shipment:* ${trackUrl}\n\n` +
+      `*Tracking AWB:* ${awbNumber}\n` +
+      `*Track Shipment:* ${trackUrl}\n\n` +
       `Expected delivery in 2-4 business days. Thank you for shopping with Outflank!`;
 
     // 1. Send to Customer
@@ -328,7 +359,7 @@ export async function sendOrderDeliveredNotification({
     const orderRef = `#${order.id.slice(0, 8).toUpperCase()}`;
 
     const textBody = 
-      `✅ *Order Delivered!*\n\n` +
+      `*Order Delivered*\n\n` +
       `Hi ${customerName},\n` +
       `Your Outflank order ${orderRef} has been successfully delivered!\n\n` +
       `We hope you love your apparel. If you have any feedback or corporate requirements, simply reply to this message.\n\n` +
@@ -353,9 +384,9 @@ export async function sendOrderDeliveredNotification({
 }
 
 /**
- * Alert store owner on incoming new order.
+ * Triggered when a new order is received to alert store administrators.
  */
-export async function sendAdminOrderAlertNotification({
+export async function sendAdminNewOrderAlert({
   order,
   adminUrl = 'https://admin.outflank.in/orders',
 }: {
@@ -370,14 +401,19 @@ export async function sendAdminOrderAlertNotification({
     const amount = `₹${Number(order.total_amount).toLocaleString('en-IN')}`;
     const payment = order.payment_method === 'cod' ? 'Cash on Delivery (COD)' : 'Prepaid (Razorpay)';
 
+    let parsedAddress: any = order.shipping_address;
+    if (typeof parsedAddress === 'string') {
+      try { parsedAddress = JSON.parse(parsedAddress); } catch {}
+    }
+
     const textBody = 
-      `🚨 *New Outflank Order Placed!*\n\n` +
+      `*New Outflank Order Placed*\n\n` +
       `• *Order:* ${orderRef}\n` +
       `• *Customer:* ${order.customer_name} (${order.customer_phone})\n` +
       `• *Amount:* ${amount}\n` +
       `• *Payment:* ${payment}\n` +
-      `• *City:* ${order.shipping_address?.city || 'India'}\n\n` +
-      `👉 *Open Dashboard:* ${adminUrl}`;
+      `• *City:* ${parsedAddress?.city || 'India'}\n\n` +
+      `*Open Dashboard:* ${adminUrl}`;
 
     sendWhatsAppMessage({
       to: settings.whatsapp_admin_alerts_phone,
@@ -390,6 +426,8 @@ export async function sendAdminOrderAlertNotification({
     console.error('[WhatsApp Admin Alert Error]:', err);
   }
 }
+
+export const sendAdminOrderAlertNotification = sendAdminNewOrderAlert;
 
 /**
  * Alert store owner on incoming corporate B2B inquiry/lead.
@@ -406,14 +444,14 @@ export async function sendAdminLeadAlertNotification({
     if (!settings.whatsapp_admin_alerts_phone) return;
 
     const textBody = 
-      `💼 *New B2B Corporate Lead Submitted!*\n\n` +
+      `*New B2B Corporate Lead Submitted*\n\n` +
       `• *Contact:* ${lead.name || 'Anonymous'}\n` +
       `• *Company:* ${lead.company_name || 'N/A'}\n` +
       `• *Phone:* ${lead.phone || 'N/A'}\n` +
       `• *Email:* ${lead.email || 'N/A'}\n` +
       `• *Product:* ${lead.product_name || 'Corporate Gifting'}\n` +
       `• *Quantity:* ${lead.quantity || '50+'}\n\n` +
-      `👉 *View Leads:* ${adminUrl}`;
+      `*View Leads:* ${adminUrl}`;
 
     sendWhatsAppMessage({
       to: settings.whatsapp_admin_alerts_phone,

@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
 import { sendWhatsAppMessage, formatWhatsAppPhone } from '@/lib/services/whatsapp';
+import { verifyAdmin } from '@/lib/supabase/server';
 
 export async function POST(req: Request) {
   try {
+    const { isAdmin } = await verifyAdmin();
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
+    }
+
     const body = await req.json();
-    const { to, message } = body;
+    const to = body.to || body.toPhone;
+    const message = body.message || body.customText;
+    const { mediaUrl, linkUrl, buttonText } = body;
 
     if (!to) {
       return NextResponse.json({ error: 'Recipient phone number is required' }, { status: 400 });
@@ -20,6 +28,9 @@ export async function POST(req: Request) {
     const result = await sendWhatsAppMessage({
       to: formattedPhone,
       messageText: text,
+      mediaUrl: mediaUrl || undefined,
+      linkUrl: linkUrl || undefined,
+      buttonText: buttonText || undefined,
     });
 
     if (!result.success) {

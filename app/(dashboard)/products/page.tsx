@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   title: 'Products | Outflank Admin',
 }
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function AdminProductsPage() {
   const supabase = await createClient()
 

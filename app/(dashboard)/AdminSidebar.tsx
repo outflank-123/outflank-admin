@@ -1,10 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, ExternalLink, Tags, Package, Image as ImageIcon, Settings, ShoppingBag } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { LayoutDashboard, Users, ExternalLink, Tags, Package, Image as ImageIcon, Settings, ShoppingBag, Megaphone, Briefcase, RefreshCw } from 'lucide-react'
 import AdminLogoutButton from './AdminLogoutButton'
+import { clearAllAdminCache } from '@/lib/adminCache'
 
 interface AdminSidebarProps {
   userEmail?: string
@@ -13,14 +15,27 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ userEmail, userRole = 'admin' }: AdminSidebarProps) {
   const pathname = usePathname()
+  const router = useRouter()
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const handleSyncRefresh = () => {
+    setIsRefreshing(true)
+    clearAllAdminCache()
+    router.refresh()
+    setTimeout(() => {
+      setIsRefreshing(false)
+    }, 700)
+  }
 
   let navItems = [
     { href: '/', icon: LayoutDashboard, label: 'Dashboard', exact: true },
     { href: '/banners', icon: ImageIcon, label: 'Banners' },
-    { href: '/leads', icon: Users, label: 'Leads Pipeline' },
+    { href: '/leads', icon: Briefcase, label: 'Leads Pipeline' },
     { href: '/categories', icon: Tags, label: 'Categories' },
     { href: '/products', icon: Package, label: 'Products' },
     { href: '/orders', icon: ShoppingBag, label: 'Retail Orders' },
+    { href: '/customers', icon: Users, label: 'Customers' },
+    { href: '/broadcast', icon: Megaphone, label: 'WhatsApp Broadcast' },
     { href: '/settings', icon: Settings, label: 'Store Settings' },
   ]
 
@@ -82,6 +97,31 @@ export default function AdminSidebar({ userEmail, userRole = 'admin' }: AdminSid
           )
         })}
       </nav>
+
+      {/* Fast Cache & Sync Card */}
+      <div className="px-4 py-3 border-t border-black/[0.03]">
+        <div className="p-2.5 rounded-2xl bg-black/[0.02] border border-black/[0.04] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <div className="flex flex-col">
+              <span className="text-[11px] font-bold text-[#1d1d1f]">Fast Cache</span>
+              <span className="text-[9px] text-[#86868b] font-medium">Instant Navigation</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleSyncRefresh}
+            disabled={isRefreshing}
+            title="Refresh and pull new data from server"
+            className="p-1.5 text-[#1d1d1f]/60 hover:text-[#1d1d1f] hover:bg-white rounded-xl transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+          >
+            <RefreshCw size={13} className={isRefreshing ? 'animate-spin text-[#e3231c]' : ''} />
+          </button>
+        </div>
+      </div>
 
       {/* Footer */}
       <div className="px-5 py-6 border-t border-black/[0.03] bg-gradient-to-t from-white/50 to-transparent shrink-0">

@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import OrdersTableClient from './OrdersTableClient'
 
-export const revalidate = 0
+export const revalidate = 60
 
 export default async function RetailOrdersPage() {
   const supabase = createAdminClient()

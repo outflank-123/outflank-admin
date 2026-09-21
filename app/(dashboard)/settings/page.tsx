@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Save, Loader2, MessageCircle, Send, CheckCircle2, AlertCircle, ShieldCheck } from 'lucide-react'
+import { getAdminCache, setAdminCache } from '@/lib/adminCache'
 
 interface StoreSettings {
   is_cod_enabled: boolean;
@@ -44,13 +45,24 @@ export default function SettingsPage() {
     fetchSettings()
   }, [])
 
-  const fetchSettings = async () => {
-    setLoading(true)
+  const fetchSettings = async (force = false) => {
+    // 1. Instant Cache Load
+    const cached = getAdminCache<StoreSettings>('outflank_admin_settings', 10 * 60 * 1000, 'session')
+    if (cached?.data) {
+      setSettings(cached.data)
+      setLoading(false)
+      if (!cached.isStale && !force) {
+        return // Instant 0ms load!
+      }
+    } else {
+      setLoading(true)
+    }
+
     try {
       const res = await fetch('/api/settings')
       if (res.ok) {
         const data = await res.json()
-        setSettings({
+        const loaded: StoreSettings = {
           is_cod_enabled: data.is_cod_enabled ?? true,
           cod_min_amount: data.cod_min_amount ?? 0,
           free_shipping_threshold: data.free_shipping_threshold ?? 0,
@@ -62,7 +74,9 @@ export default function SettingsPage() {
           whatsapp_phone_number_id: data.whatsapp_phone_number_id ?? '',
           whatsapp_business_account_id: data.whatsapp_business_account_id ?? '',
           whatsapp_access_token: data.whatsapp_access_token ?? '',
-        })
+        }
+        setSettings(loaded)
+        setAdminCache('outflank_admin_settings', loaded, 'session')
         if (!testPhone && data.whatsapp_admin_alerts_phone) {
           setTestPhone(data.whatsapp_admin_alerts_phone)
         }
@@ -84,6 +98,7 @@ export default function SettingsPage() {
         body: JSON.stringify(settings),
       })
       if (res.ok) {
+        setAdminCache('outflank_admin_settings', settings, 'session')
         setMessage('Settings saved successfully!')
         setTimeout(() => setMessage(''), 3500)
       } else {
