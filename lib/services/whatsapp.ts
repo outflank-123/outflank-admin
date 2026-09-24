@@ -71,13 +71,15 @@ export async function getWhatsAppSettings(): Promise<WhatsAppSettings> {
     }
 
     return {
-      whatsapp_support_phone: data.whatsapp_support_phone || DEFAULT_SETTINGS.whatsapp_support_phone,
-      whatsapp_admin_alerts_phone: data.whatsapp_admin_alerts_phone || DEFAULT_SETTINGS.whatsapp_admin_alerts_phone,
-      whatsapp_notifications_enabled: Boolean(data.whatsapp_notifications_enabled),
-      whatsapp_provider: data.whatsapp_provider || DEFAULT_SETTINGS.whatsapp_provider,
-      whatsapp_phone_number_id: data.whatsapp_phone_number_id || null,
-      whatsapp_business_account_id: data.whatsapp_business_account_id || null,
-      whatsapp_access_token: data.whatsapp_access_token || null,
+      whatsapp_support_phone: data.whatsapp_support_phone || process.env.WHATSAPP_SUPPORT_PHONE || DEFAULT_SETTINGS.whatsapp_support_phone,
+      whatsapp_admin_alerts_phone: data.whatsapp_admin_alerts_phone || process.env.WHATSAPP_ADMIN_ALERTS_PHONE || DEFAULT_SETTINGS.whatsapp_admin_alerts_phone,
+      whatsapp_notifications_enabled: data.whatsapp_notifications_enabled !== undefined && data.whatsapp_notifications_enabled !== null 
+        ? Boolean(data.whatsapp_notifications_enabled) 
+        : (process.env.WHATSAPP_NOTIFICATIONS_ENABLED === 'true'),
+      whatsapp_provider: data.whatsapp_provider || (process.env.WHATSAPP_PROVIDER as any) || DEFAULT_SETTINGS.whatsapp_provider,
+      whatsapp_phone_number_id: data.whatsapp_phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || null,
+      whatsapp_business_account_id: data.whatsapp_business_account_id || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || null,
+      whatsapp_access_token: data.whatsapp_access_token || process.env.WHATSAPP_ACCESS_TOKEN || null,
       whatsapp_templates: data.whatsapp_templates || DEFAULT_SETTINGS.whatsapp_templates,
     };
   } catch (err) {
