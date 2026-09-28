@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { createClient, verifyAdmin } from '@/lib/supabase/server'
-import { sendOrderShippedNotification } from '@/lib/services/whatsapp'
 
 const SHADOWFAX_BASE_URL = process.env.SHADOWFAX_BASE_URL || 'https://dale.staging.shadowfax.in/api'
 const SHADOWFAX_API_TOKEN = process.env.SHADOWFAX_API_TOKEN || ''
@@ -183,16 +182,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Order dispatched but DB update failed', awb_number: awbNumber }, { status: 500 })
     }
 
-    // Trigger automated WhatsApp notification to customer (wait to prevent Vercel process kill)
-    try {
-      await sendOrderShippedNotification({
-        order,
-        awbNumber,
-        courierName: 'Shadowfax Surface Express',
-      })
-    } catch (waErr) {
-      console.error('[Shadowfax Dispatch] WhatsApp notification non-fatal error:', waErr)
-    }
+    // NOTE: WhatsApp 'order_shipped' is sent later by the Shadowfax webhook
+    // when the agent physically picks up the package ('picked' event).
+    // Sending it here would be premature — the order is booked but not yet collected.
 
     return NextResponse.json({
       success: true,
