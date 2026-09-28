@@ -39,6 +39,7 @@ export interface Product {
   description: string | null
   short_desc: string | null
   base_price: number | null
+  mrp_price: number | null
   min_order_qty: number
   lead_time_days: number
   is_featured: boolean
@@ -148,6 +149,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
     description: '',
     short_desc: '',
     base_price: '',
+    mrp_price: '',
     min_order_qty: 50,
     lead_time_days: 15,
     is_featured: false,
@@ -186,6 +188,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
       description: '',
       short_desc: '',
       base_price: '',
+      mrp_price: '',
       min_order_qty: 50,
       lead_time_days: 15,
       is_featured: false,
@@ -220,6 +223,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
       description: prod.description || '',
       short_desc: prod.short_desc || '',
       base_price: prod.base_price !== null && prod.base_price !== undefined ? prod.base_price.toString() : '',
+      mrp_price: prod.mrp_price !== null && prod.mrp_price !== undefined ? prod.mrp_price.toString() : '',
       min_order_qty: prod.min_order_qty || 50,
       lead_time_days: prod.lead_time_days || 15,
       is_featured: Boolean(prod.is_featured),
@@ -349,6 +353,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
           description: formData.description.trim() || null,
           short_desc: formData.short_desc.trim() || null,
           base_price: formData.base_price !== '' ? parseFloat(formData.base_price) : null,
+          mrp_price: formData.mrp_price !== '' ? parseFloat(formData.mrp_price) : null,
           min_order_qty: Math.max(1, Number(formData.min_order_qty) || 50),
           lead_time_days: Math.max(1, Number(formData.lead_time_days) || 15),
           is_featured: formData.is_featured,
@@ -1186,9 +1191,16 @@ export default function ProductsClient({ initialProducts, categories }: Products
                   <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-black/[0.04]">
                     <div className="flex flex-col">
                       <span className="text-[10px] uppercase font-bold text-[#86868b] tracking-wider">Price</span>
-                      <span className="text-[16px] font-extrabold text-[#1d1d1f]">
-                        {prod.base_price !== null && prod.base_price !== undefined ? `₹${prod.base_price.toLocaleString('en-IN')}` : 'Quote Only'}
-                      </span>
+                      <div className="flex flex-col">
+                        {prod.mrp_price !== null && prod.mrp_price !== undefined && (
+                          <span className="text-[11px] text-[#86868b] line-through decoration-[#86868b]/50">
+                            ₹{prod.mrp_price.toLocaleString('en-IN')}
+                          </span>
+                        )}
+                        <span className="text-[16px] font-extrabold text-[#1d1d1f] leading-tight">
+                          {prod.base_price !== null && prod.base_price !== undefined ? `₹${prod.base_price.toLocaleString('en-IN')}` : 'Quote Only'}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="flex flex-col text-right">
@@ -1470,15 +1482,22 @@ export default function ProductsClient({ initialProducts, categories }: Products
 
                       {/* Price */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        {prod.base_price !== null && prod.base_price !== undefined ? (
-                          <span className="text-[13px] font-bold text-[#1d1d1f]">
-                            ₹{prod.base_price.toLocaleString('en-IN')}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-black/5 text-[#86868b] text-[11px] font-semibold">
-                            Quote Only
-                          </span>
-                        )}
+                        <div className="flex flex-col justify-center">
+                          {prod.mrp_price !== null && prod.mrp_price !== undefined && (
+                            <span className="text-[11px] text-[#86868b] font-medium line-through decoration-[#86868b]/50">
+                              ₹{prod.mrp_price.toLocaleString('en-IN')}
+                            </span>
+                          )}
+                          {prod.base_price !== null && prod.base_price !== undefined ? (
+                            <span className="text-[13px] font-bold text-[#1d1d1f]">
+                              ₹{prod.base_price.toLocaleString('en-IN')}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-black/5 text-[#86868b] text-[11px] font-semibold mt-0.5 w-fit">
+                              Quote Only
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* MOQ - Single Line */}
@@ -2141,7 +2160,27 @@ export default function ProductsClient({ initialProducts, categories }: Products
                 {/* ─── TAB 2: PRICING & SUPPLY ─── */}
                 {activeTab === 'pricing' && (
                   <div className="space-y-6 animate-in fade-in duration-200">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* MRP Price */}
+                      <div>
+                        <label className="block text-[12px] font-bold uppercase tracking-wider text-[#86868b] mb-1.5">
+                          Max Retail Price (MRP)
+                        </label>
+                        <div className="relative flex items-center">
+                          <span className="absolute left-3.5 text-[#1d1d1f] font-bold text-[14px]">₹</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={formData.mrp_price}
+                            onChange={(e) => setFormData({ ...formData, mrp_price: e.target.value })}
+                            placeholder="999"
+                            className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-white border border-black/10 text-[15px] font-bold text-[#1d1d1f] focus:outline-none focus:ring-4 focus:ring-[#e3231c]/10 focus:border-[#e3231c]/30"
+                          />
+                        </div>
+                        <p className="text-[11px] text-[#86868b] mt-1">Strikethrough original price.</p>
+                      </div>
+
                       {/* Base Price */}
                       <div>
                         <label className="block text-[12px] font-bold uppercase tracking-wider text-[#86868b] mb-1.5">

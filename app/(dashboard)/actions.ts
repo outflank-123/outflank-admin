@@ -163,6 +163,11 @@ function sanitizeProductPayload(data: any, isPartial = false) {
     payload.base_price = isNaN(basePrice as number) ? null : basePrice
   }
 
+  if (data.mrp_price !== undefined) {
+    const mrpPrice = data.mrp_price !== null && data.mrp_price !== '' ? Number(data.mrp_price) : null
+    payload.mrp_price = isNaN(mrpPrice as number) ? null : mrpPrice
+  }
+
   if (data.min_order_qty !== undefined) {
     const minOrderQty = Number(data.min_order_qty)
     payload.min_order_qty = !isNaN(minOrderQty) ? Math.max(1, Math.round(minOrderQty)) : 50
