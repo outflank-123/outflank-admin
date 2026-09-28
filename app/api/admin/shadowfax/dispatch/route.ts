@@ -183,9 +183,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Order dispatched but DB update failed', awb_number: awbNumber }, { status: 500 })
     }
 
-    // Trigger automated WhatsApp notification to customer (non-blocking)
+    // Trigger automated WhatsApp notification to customer (wait to prevent Vercel process kill)
     try {
-      sendOrderShippedNotification({
+      await sendOrderShippedNotification({
         order,
         awbNumber,
         courierName: 'Shadowfax Surface Express',
