@@ -141,6 +141,63 @@ export async function sendWhatsAppMessage({
       let payload: any;
 
       if (templateName) {
+        const isHelloWorld = templateName === 'hello_world';
+        const usTemplates = ['outflank_marketing_flex', 'outflank_polo_showcase_v1', 'hello_world'];
+        const langCode = usTemplates.includes(templateName) ? 'en_US' : 'en';
+        const components: any[] = [];
+
+        // Templates that use IMAGE headers (need a mediaUrl param)
+        const imageHeaderTemplates = ['outflank_custom_message', 'outflank_polo_showcase_v1'];
+
+        if (mediaUrl && imageHeaderTemplates.includes(templateName)) {
+          components.push({
+            type: 'header',
+            parameters: [{ type: 'image', image: { link: mediaUrl } }],
+          });
+        }
+
+        if (templateParams && templateParams.length > 0 && !isHelloWorld) {
+          components.push({
+            type: 'body',
+            parameters: templateParams.map(param => ({
+              type: 'text',
+              text: String(param),
+            })),
+          });
+        }
+
+        if (templateName === 'outflank_marketing_flex' || templateName === 'outflank_custom_message') {
+          // Dynamic URL button: base URL is https://outflank.in/
+          const rawLink = linkUrl || 'https://outflank.in/products';
+          const urlPath = rawLink.replace(/^https?:\/\/outflank\.in\/?/, '') || 'products';
+          components.push({
+            type: 'button',
+            sub_type: 'url',
+            index: 0,
+            parameters: [{ type: 'text', text: urlPath }],
+          });
+        }
+
+        if (templateName === 'order_shipped' && templateParams && templateParams.length >= 5) {
+          // AWB Number is the 5th parameter for the dynamic button
+          components.push({
+            type: 'button',
+            sub_type: 'url',
+            index: 0,
+            parameters: [{ type: 'text', text: String(templateParams[4]) }],
+          });
+        }
+
+        if (templateName === 'order_placed' && linkUrl) {
+          // Inject linkUrl into dynamic URL button
+          components.push({
+            type: 'button',
+            sub_type: 'url',
+            index: 0,
+            parameters: [{ type: 'text', text: linkUrl }],
+          });
+        }
+
         payload = {
           messaging_product: 'whatsapp',
           recipient_type: 'individual',
@@ -148,24 +205,8 @@ export async function sendWhatsAppMessage({
           type: 'template',
           template: {
             name: templateName,
-            language: { code: 'en' },
-            components: [
-              ...(mediaUrl
-                ? [
-                    {
-                      type: 'header',
-                      parameters: [{ type: 'image', image: { link: mediaUrl } }],
-                    },
-                  ]
-                : []),
-              {
-                type: 'body',
-                parameters: templateParams.map(param => ({
-                  type: 'text',
-                  text: param,
-                })),
-              },
-            ],
+            language: { code: langCode },
+            ...(components.length > 0 ? { components } : {}),
           },
         };
       } else if (mediaUrl) {
@@ -270,21 +311,38 @@ export async function sendOrderPlacedNotification({
     const trackUrl = `${siteUrl}/track?order_id=${order.id}&email=${encodeURIComponent(order.customer_email || '')}`;
     const invoiceUrl = `${siteUrl}/invoice/${order.id}`;
 
+    // Fetch items if missing
+    let productsText = 'Outflank Items';
+    if (order.items && order.items.length > 0) {
+      productsText = order.items.map((i: any) => i.product_name).join(', ');
+    } else {
+      const supabase = createAdminClient();
+      const { data: items } = await supabase.from('retail_order_items').select('product_name').eq('order_id', order.id);
+      if (items && items.length > 0) {
+        productsText = items.map((i: any) => i.product_name).join(', ');
+      }
+    }
+    const paymentMode = order.payment_method ? String(order.payment_method).toUpperCase() : 'PREPAID';
+
     const textBody = 
       `*Order Confirmed* (Order ${orderRef})\n\n` +
       `Hi ${customerName},\n` +
-      `Thank you for choosing Outflank! Your order for ${totalAmount} has been confirmed.\n\n` +
-      `*Status:* In Production\n` +
-      `*View Tax Invoice:* ${invoiceUrl}\n` +
-      `*Track Live:* ${trackUrl}\n\n` +
+      `Thank you for choosing Outflank! Your order has been confirmed.\n\n` +
+      `📦 Order Details:\n` +
+      `• Order ID: ${orderRef}\n` +
+      `• Product(s): ${productsText}\n` +
+      `• Order Value: ${totalAmount}\n` +
+      `• Payment Mode: ${paymentMode}\n\n` +
       `We will notify you as soon as your package is dispatched!`;
 
     // 1. Send to Customer
+    const buttonPath = `track?order_id=${order.id}&email=${encodeURIComponent(order.customer_email || '')}`;
     sendWhatsAppMessage({
       to: order.customer_phone,
       messageText: textBody,
       templateName: 'order_placed',
-      templateParams: [customerName, orderRef, totalAmount, trackUrl],
+      templateParams: [customerName, orderRef, productsText, totalAmount, paymentMode], // 5 parameters
+      linkUrl: buttonPath, // Passed explicitly for the button
     }).catch(err => console.error('[WhatsApp Placed] Customer send failed:', err));
 
     // 2. Mark order as notified in background
@@ -318,20 +376,38 @@ export async function sendOrderShippedNotification({
     const orderRef = `#${order.id.slice(0, 8).toUpperCase()}`;
     const trackUrl = `https://shadowfax.in/tracking/${awbNumber}`;
 
+    const totalAmount = `₹${Number(order.total_amount).toLocaleString('en-IN')}`;
+    const paymentMode = order.payment_method ? String(order.payment_method).toUpperCase() : 'PREPAID';
+
+    // Fetch items if missing
+    let productsText = 'Outflank Items';
+    if (order.items && order.items.length > 0) {
+      productsText = order.items.map((i: any) => i.product_name).join(', ');
+    } else {
+      const supabase = createAdminClient();
+      const { data: items } = await supabase.from('retail_order_items').select('product_name').eq('order_id', order.id);
+      if (items && items.length > 0) {
+        productsText = items.map((i: any) => i.product_name).join(', ');
+      }
+    }
+
     const textBody = 
       `*Your Outflank Order Has Shipped*\n\n` +
       `Hi ${customerName},\n` +
       `Great news! Your order ${orderRef} has been dispatched via *${courierName}*.\n\n` +
-      `*Tracking AWB:* ${awbNumber}\n` +
-      `*Track Shipment:* ${trackUrl}\n\n` +
+      `📦 Order Details:\n` +
+      `• Order ID: ${orderRef}\n` +
+      `• Product(s): ${productsText}\n` +
+      `• Order Value: ${totalAmount}\n` +
+      `• Tracking AWB: ${awbNumber}\n\n` +
       `Expected delivery in 2-4 business days. Thank you for shopping with Outflank!`;
 
-    // 1. Send to Customer
+    // 1. Send to Customer (5 body params)
     sendWhatsAppMessage({
       to: order.customer_phone,
       messageText: textBody,
       templateName: 'order_shipped',
-      templateParams: [customerName, orderRef, awbNumber, trackUrl],
+      templateParams: [customerName, orderRef, productsText, totalAmount, awbNumber],
     }).catch(err => console.error('[WhatsApp Shipped] Customer send failed:', err));
 
     // 2. Mark order as notified

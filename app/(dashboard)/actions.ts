@@ -146,6 +146,10 @@ function sanitizeProductPayload(data: any, isPartial = false) {
     payload.category_id = data.category_id || null
   }
 
+  if (data.model_number !== undefined) {
+    payload.model_number = typeof data.model_number === 'string' && data.model_number.trim() ? data.model_number.trim() : null
+  }
+
   if (data.description !== undefined) {
     payload.description = typeof data.description === 'string' ? data.description.trim() : null
   }

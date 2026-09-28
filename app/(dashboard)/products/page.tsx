@@ -18,6 +18,7 @@ export default async function AdminProductsPage() {
     .from('products')
     .select('*, categories(name)')
     .order('created_at', { ascending: false })
+    .limit(50)
 
   const { data: categories } = await supabase
     .from('categories')
@@ -25,8 +26,8 @@ export default async function AdminProductsPage() {
     .order('sort_order', { ascending: true })
 
   return (
-    <div className="p-8">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-semibold text-[#1d1d1f] tracking-tight">Products</h1>
           <p className="text-[#86868b] text-[15px] mt-1.5 font-medium">{products?.length ?? 0} total products in catalog</p>

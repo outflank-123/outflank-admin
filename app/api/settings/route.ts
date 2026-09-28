@@ -28,9 +28,9 @@ export async function GET() {
         whatsapp_admin_alerts_phone: '919999926273',
         whatsapp_notifications_enabled: false,
         whatsapp_provider: 'meta_cloud',
-        whatsapp_phone_number_id: '',
-        whatsapp_business_account_id: '',
-        whatsapp_access_token: '',
+        whatsapp_phone_number_id: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+        whatsapp_business_account_id: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
+        whatsapp_access_token: process.env.WHATSAPP_ACCESS_TOKEN || '',
       })
     }
 
@@ -51,9 +51,9 @@ export async function GET() {
         whatsapp_admin_alerts_phone: data.whatsapp_admin_alerts_phone || '919999926273',
         whatsapp_notifications_enabled: Boolean(data.whatsapp_notifications_enabled),
         whatsapp_provider: data.whatsapp_provider || 'meta_cloud',
-        whatsapp_phone_number_id: data.whatsapp_phone_number_id || '',
-        whatsapp_business_account_id: data.whatsapp_business_account_id || '',
-        whatsapp_access_token: data.whatsapp_access_token || '',
+        whatsapp_phone_number_id: data.whatsapp_phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+        whatsapp_business_account_id: data.whatsapp_business_account_id || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
+        whatsapp_access_token: data.whatsapp_access_token || process.env.WHATSAPP_ACCESS_TOKEN || '',
       })
     }
 
@@ -115,13 +115,14 @@ export async function PUT(req: Request) {
       updated_at: new Date().toISOString()
     }
 
-    if (whatsapp_support_phone !== undefined) updatePayload.whatsapp_support_phone = whatsapp_support_phone
-    if (whatsapp_admin_alerts_phone !== undefined) updatePayload.whatsapp_admin_alerts_phone = whatsapp_admin_alerts_phone
-    if (whatsapp_notifications_enabled !== undefined) updatePayload.whatsapp_notifications_enabled = Boolean(whatsapp_notifications_enabled)
-    if (whatsapp_provider !== undefined) updatePayload.whatsapp_provider = whatsapp_provider
-    if (whatsapp_phone_number_id !== undefined) updatePayload.whatsapp_phone_number_id = whatsapp_phone_number_id
-    if (whatsapp_business_account_id !== undefined) updatePayload.whatsapp_business_account_id = whatsapp_business_account_id
-    if (whatsapp_access_token !== undefined) updatePayload.whatsapp_access_token = whatsapp_access_token
+    // We rely on .env for WhatsApp credentials, so we don't update them in the DB to avoid schema errors.
+    // if (whatsapp_support_phone !== undefined) updatePayload.whatsapp_support_phone = whatsapp_support_phone
+    // if (whatsapp_admin_alerts_phone !== undefined) updatePayload.whatsapp_admin_alerts_phone = whatsapp_admin_alerts_phone
+    // if (whatsapp_notifications_enabled !== undefined) updatePayload.whatsapp_notifications_enabled = Boolean(whatsapp_notifications_enabled)
+    // if (whatsapp_provider !== undefined) updatePayload.whatsapp_provider = whatsapp_provider
+    // if (whatsapp_phone_number_id !== undefined) updatePayload.whatsapp_phone_number_id = whatsapp_phone_number_id
+    // if (whatsapp_business_account_id !== undefined) updatePayload.whatsapp_business_account_id = whatsapp_business_account_id
+    // if (whatsapp_access_token !== undefined) updatePayload.whatsapp_access_token = whatsapp_access_token
 
     // We expect exactly one row to exist or we update all rows since there should only be one
     const { data: existingRows } = await supabase.from('store_settings').select('id').limit(1)

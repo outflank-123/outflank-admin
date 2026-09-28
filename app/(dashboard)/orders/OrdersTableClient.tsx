@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react'
+import React, { useState, useMemo, useEffect, useCallback, useDeferredValue } from 'react'
 import {
   Clock, CheckCircle2, XCircle, Package, Truck, Loader2,
   ChevronDown, ChevronRight, Search, MapPin, Phone, ShoppingBag,
@@ -12,6 +12,7 @@ import {
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getAdminCache, setAdminCache } from '@/lib/adminCache'
+import { fetchOrdersAction } from './fetchActions'
 
 export interface CustomizationData {
   is_customized?: boolean
@@ -164,6 +165,10 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
     }
   }, [initialOrders])
 
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(initialOrders.length === 50)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+
   // Persist order state modifications
   useEffect(() => {
     if (orders && orders.length > 0) {
@@ -176,6 +181,7 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
   const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null)
 
   const [searchQuery, setSearchQuery] = useState('')
+  const deferredSearchQuery = useDeferredValue(searchQuery)
   const [activeTab, setActiveTab] = useState('all')
   const [dateFilter, setDateFilter] = useState('all_time')
 
@@ -436,8 +442,8 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
       const d = new Date(now); d.setDate(d.getDate() - 30)
       result = result.filter(o => new Date(o.created_at) >= d)
     }
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase()
+    if (deferredSearchQuery) {
+      const q = deferredSearchQuery.toLowerCase()
       result = result.filter(o =>
         o.id.toLowerCase().includes(q) ||
         o.customer_name.toLowerCase().includes(q) ||
@@ -464,6 +470,30 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
   }, [baseFilteredOrders, activeTab])
 
   const tabs = tabOptions
+
+  const exportToCSV = () => {
+    if (filteredOrders.length === 0) return
+    const headers = ['Order ID', 'Date', 'Customer Name', 'Phone', 'Email', 'Payment Method', 'Amount', 'Status', 'AWB']
+    const csvContent = [
+      headers.join(','),
+      ...filteredOrders.map(o => [
+        o.id,
+        new Date(o.created_at).toISOString(),
+        `"${o.customer_name?.replace(/"/g, '""')}"`,
+        `"${o.customer_phone}"`,
+        `"${o.customer_email}"`,
+        o.payment_method,
+        o.total_amount,
+        o.status,
+        o.awb_number || ''
+      ].join(','))
+    ].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `orders_export_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+  }
 
   return (
     <div className="space-y-6">
@@ -502,17 +532,25 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
             />
             </div>
           </div>
-          <select
-            value={dateFilter}
-            onChange={e => setDateFilter(e.target.value)}
-            className="block rounded-md border-0 py-1.5 pl-3 pr-10 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-black sm:text-sm sm:leading-6"
-          >
-            <option value="all_time">All Time</option>
-            <option value="today">Today</option>
-            <option value="yesterday">Yesterday</option>
-            <option value="last_7_days">Last 7 Days</option>
-            <option value="last_30_days">Last 30 Days</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              value={dateFilter}
+              onChange={e => setDateFilter(e.target.value)}
+              className="block rounded-md border-0 py-1.5 pl-3 pr-10 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-black sm:text-sm sm:leading-6"
+            >
+              <option value="all_time">All Time</option>
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="last_7_days">Last 7 Days</option>
+              <option value="last_30_days">Last 30 Days</option>
+            </select>
+            <button
+              onClick={exportToCSV}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 hover:bg-black text-white text-sm font-semibold rounded-md shadow-sm transition-colors"
+            >
+              <Download size={14} /> Export CSV
+            </button>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
           {tabs.map(tab => {
@@ -540,9 +578,9 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
 
       {/* Table */}
       <div className="bg-white shadow-sm ring-1 ring-gray-900/5 sm:rounded-xl overflow-visible">
-        <div className="overflow-x-auto overflow-y-visible min-h-[400px]">
-          <table className="min-w-full divide-y divide-gray-300">
-            <thead className="bg-gray-50">
+        <div className="overflow-x-auto min-h-[400px] max-h-[70vh]">
+          <table className="min-w-full divide-y divide-gray-300 relative">
+            <thead className="bg-gray-50 sticky top-0 z-20 shadow-sm backdrop-blur-md bg-gray-50/90">
               <tr>
                 <th className="py-3.5 pl-4 pr-1 text-left sm:pl-6 w-14">
                   <div className="flex items-center gap-2">
@@ -1167,6 +1205,34 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
           </table>
         </div>
       </div>
+
+      {hasMore && (
+        <div className="flex justify-center mt-6 mb-2">
+          <button
+            onClick={async () => {
+              setIsLoadingMore(true)
+              const nextPage = page + 1
+              const res = await fetchOrdersAction({ page: nextPage, limit: 50 })
+              if (res.data && res.data.length > 0) {
+                setOrders(prev => {
+                  const newOrders = [...prev]
+                  res.data.forEach((o: any) => { if (!newOrders.find(existing => existing.id === o.id)) newOrders.push(o) })
+                  return newOrders
+                })
+                setPage(nextPage)
+                setHasMore(res.data.length === 50)
+              } else {
+                setHasMore(false)
+              }
+              setIsLoadingMore(false)
+            }}
+            disabled={isLoadingMore}
+            className="px-6 py-2.5 bg-white hover:bg-gray-50 text-[#1d1d1f] text-sm font-semibold rounded-xl shadow-sm border border-black/10 transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {isLoadingMore ? <Loader2 size={16} className="animate-spin text-[#e3231c]" /> : 'Load Older Orders'}
+          </button>
+        </div>
+      )}
 
       {/* ─── Dispatch Modal ─── */}
       {dispatchOrder && (

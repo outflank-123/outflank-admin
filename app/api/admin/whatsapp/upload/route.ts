@@ -90,10 +90,10 @@ export async function POST(req: Request) {
     let isUnderTarget = false;
 
     if (file.type !== 'image/svg+xml') {
-      // Step 1: Adjust WebP quality while keeping exact natural resolution and aspect ratio
+      // Step 1: Adjust JPEG quality while keeping exact natural resolution and aspect ratio
       while (quality >= 30) {
         const tempBuffer = await sharp(buffer)
-          .webp({ quality, effort: 6 })
+          .jpeg({ quality, mozjpeg: true })
           .toBuffer();
 
         if (tempBuffer.length <= TARGET_BYTES) {
@@ -114,7 +114,7 @@ export async function POST(req: Request) {
           const targetWidth = Math.max(Math.round(originalWidth * scale), 160);
           const tempBuffer = await sharp(buffer)
             .resize({ width: targetWidth, withoutEnlargement: true }) // Preserves natural aspect ratio
-            .webp({ quality: 60, effort: 6 })
+            .jpeg({ quality: 60, mozjpeg: true })
             .toBuffer();
 
           if (tempBuffer.length <= TARGET_BYTES || targetWidth <= 160) {
@@ -127,8 +127,8 @@ export async function POST(req: Request) {
       }
     }
 
-    const ext = file.type === 'image/svg+xml' ? 'svg' : 'webp';
-    const contentType = file.type === 'image/svg+xml' ? 'image/svg+xml' : 'image/webp';
+    const ext = file.type === 'image/svg+xml' ? 'svg' : 'jpeg';
+    const contentType = file.type === 'image/svg+xml' ? 'image/svg+xml' : 'image/jpeg';
     const fileName = `whatsapp-campaigns/${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
 
     const supabase = createAdminClient();

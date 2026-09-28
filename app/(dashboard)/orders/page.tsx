@@ -36,7 +36,7 @@ export default async function RetailOrdersPage() {
       )
     `)
     .order('created_at', { ascending: false })
-    .limit(300)
+    .limit(50)
 
   if (error && error.code === '42703') {
     // Fallback if customization column has not been added yet
@@ -68,7 +68,7 @@ export default async function RetailOrdersPage() {
         )
       `)
       .order('created_at', { ascending: false })
-      .limit(300)
+      .limit(50)
     orders = fallback.data as any
     error = fallback.error
   }

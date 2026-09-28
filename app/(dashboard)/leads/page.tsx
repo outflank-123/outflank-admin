@@ -32,7 +32,7 @@ export default async function AdminLeadsPage({ searchParams }: LeadsPageProps) {
   const { data: leads } = await query
 
   return (
-    <div className="p-8">
+    <div className="space-y-6">
       <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-black text-[#1d1d1f] tracking-tight">Sales CRM & Leads Pipeline</h1>

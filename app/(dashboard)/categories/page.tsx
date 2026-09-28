@@ -19,7 +19,7 @@ export default async function AdminCategoriesPage() {
     .order('sort_order', { ascending: true })
 
   return (
-    <div className="p-8">
+    <div className="space-y-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-semibold text-[#1d1d1f] tracking-tight">Categories</h1>

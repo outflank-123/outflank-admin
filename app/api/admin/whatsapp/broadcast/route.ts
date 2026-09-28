@@ -91,6 +91,20 @@ export async function POST(req: Request) {
     const supabase = createAdminClient();
     const recipientMap = new Map<string, string>(); // phone -> name
 
+    if (targetAudience === 'registered_customers' || targetAudience === 'all') {
+      const { data: customers } = await supabase
+        .from('customers')
+        .select('full_name, phone, shipping_address');
+
+      (customers || []).forEach((c) => {
+        const raw = (c.phone || c.shipping_address?.phone || '').replace(/\D/g, '');
+        const formatted = formatWhatsAppPhone(raw);
+        if (formatted && !recipientMap.has(formatted)) {
+          recipientMap.set(formatted, c.full_name || c.shipping_address?.fullName || 'Registered Customer');
+        }
+      });
+    }
+
     if (targetAudience === 'retail_customers' || targetAudience === 'all') {
       const { data: orders } = await supabase
         .from('retail_orders')
@@ -128,6 +142,16 @@ export async function POST(req: Request) {
       });
     }
 
+    // Ensure any explicitly checked selectedPhones are included even if from mixed audiences
+    if (Array.isArray(body.selectedPhones) && body.selectedPhones.length > 0) {
+      body.selectedPhones.forEach((raw: string) => {
+        const formatted = formatWhatsAppPhone(raw);
+        if (formatted && !recipientMap.has(formatted)) {
+          recipientMap.set(formatted, 'Valued Customer');
+        }
+      });
+    }
+
     let recipients = Array.from(recipientMap.entries()).map(([phone, name]) => ({
       phone,
       name,
@@ -154,19 +178,46 @@ export async function POST(req: Request) {
       messageId?: string;
     }> = [];
 
+    // ── Default Outflank branding image used when no custom image is uploaded ──
+    // outflank_custom_message requires an IMAGE header — this ensures the user's
+    // custom message body ({{2}}) is ALWAYS delivered as written.
+    const DEFAULT_OUTFLANK_IMAGE = 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?q=80&w=1000&auto=format&fit=crop';
+    const DEFAULT_OUTFLANK_LINK  = 'https://outflank.in';
+
+    // ALWAYS use outflank_marketing_flex so {{2}} carries the user's custom message.
+    // outflank_broadcast has a FIXED hardcoded body and ignores whatever the user typed.
+    const resolvedMediaUrl = mediaUrl?.trim() || DEFAULT_OUTFLANK_IMAGE;
+    const resolvedLinkUrl  = linkUrl?.trim()  || DEFAULT_OUTFLANK_LINK;
+
     for (const recipient of recipients) {
       const personalizedText = messageText
         .replace(/{name}/gi, recipient.name)
         .replace(/{customer_name}/gi, recipient.name);
 
+      // Use explicit templateName from UI if given; otherwise always
+      // outflank_custom_message (image + {{1}}=name + {{2}}=custom text + button).
+      const chosenTemplate: string = templateName || 'outflank_custom_message';
+
+      // Meta does not allow newlines or more than 4 spaces in template body parameters.
+      const safeText = personalizedText.replace(/[\n\t\r]+/g, ' ').replace(/\s{2,}/g, ' ');
+
+      // ── Param mapping ────────────────────────────────────────────────────────
+      // outflank_custom_message: {{1}} = recipient name, {{2}} = full message text
+      // Any other named template:  pass [name] as baseline; caller can override via templateName
+      const chosenParams: string[] = chosenTemplate === 'outflank_custom_message'
+        ? [recipient.name, safeText]
+        : [recipient.name];
+
+      console.log(`[Broadcast API] sending to ${recipient.phone}: template=${chosenTemplate}, params=`, chosenParams);
+
       const res = await sendWhatsAppMessage({
         to: recipient.phone,
         messageText: personalizedText,
-        templateName: templateName || undefined,
-        templateParams: [recipient.name],
-        mediaUrl: mediaUrl || undefined,
-        linkUrl: linkUrl || undefined,
-        buttonText: buttonText || undefined,
+        templateName: chosenTemplate,
+        templateParams: chosenParams,
+        mediaUrl: resolvedMediaUrl,
+        linkUrl:  resolvedLinkUrl,
+        buttonText: buttonText || 'Visit Outflank',
       });
 
       if (res.success) {

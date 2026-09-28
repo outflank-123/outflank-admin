@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useId, useMemo, useEffect } from 'react'
+import { useState, useTransition, useId, useMemo, useEffect, useDeferredValue } from 'react'
 import {
   Plus, Edit2, Edit3, Trash2, Search, Package, X, Image as ImageIcon,
   UploadCloud, Loader2, Copy, ExternalLink, Star, Check, LayoutGrid,
@@ -14,6 +14,7 @@ import { createProduct, updateProduct, deleteProduct, duplicateProduct, uploadPr
 import Image from 'next/image'
 import BrandingCanvasEditor from './BrandingCanvasEditor'
 import { getAdminCache, setAdminCache } from '@/lib/adminCache'
+import { fetchProductsAction } from './fetchActions'
 
 export interface ColorVariant {
   name: string
@@ -34,6 +35,7 @@ export interface Product {
   category_id: string | null
   name: string
   slug: string
+  model_number?: string | null
   description: string | null
   short_desc: string | null
   base_price: number | null
@@ -91,6 +93,10 @@ export default function ProductsClient({ initialProducts, categories }: Products
     }
   }, [initialProducts])
 
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(initialProducts.length === 50)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+
   const pendingCount = Object.keys(pendingChanges).length
   const totalChangedFields = Object.values(pendingChanges).reduce((sum, changes) => sum + Object.keys(changes).length, 0)
 
@@ -108,6 +114,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
   }, [pendingCount])
 
   const [search, setSearch] = useState('')
+  const deferredSearch = useDeferredValue(search)
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'active' | 'inactive'>('all')
   const [selectedFeatured, setSelectedFeatured] = useState<'all' | 'featured'>('all')
@@ -136,6 +143,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
+    model_number: '',
     category_id: '',
     description: '',
     short_desc: '',
@@ -173,6 +181,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
     setFormData({
       name: '',
       slug: '',
+      model_number: '',
       category_id: categories[0]?.id || '',
       description: '',
       short_desc: '',
@@ -206,6 +215,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
     setFormData({
       name: prod.name,
       slug: prod.slug,
+      model_number: prod.model_number || '',
       category_id: prod.category_id || '',
       description: prod.description || '',
       short_desc: prod.short_desc || '',
@@ -334,6 +344,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
         const payload = {
           name: formData.name.trim(),
           slug: cleanSlug,
+          model_number: formData.model_number.trim() || null,
           category_id: formData.category_id || null,
           description: formData.description.trim() || null,
           short_desc: formData.short_desc.trim() || null,
@@ -606,7 +617,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
   // Filter & Sort Pipeline
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
-      const q = search.trim().toLowerCase()
+      const q = deferredSearch.trim().toLowerCase()
       const matchesSearch = !q ||
         p.name.toLowerCase().includes(q) ||
         p.slug.toLowerCase().includes(q) ||
@@ -715,6 +726,31 @@ export default function ProductsClient({ initialProducts, categories }: Products
     const start = (currentPage - 1) * pageSize
     return filteredProducts.slice(start, start + pageSize)
   }, [filteredProducts, currentPage, pageSize])
+
+  const exportToCSV = () => {
+    if (filteredProducts.length === 0) return
+    const headers = ['Product ID', 'Name', 'SKU', 'Category', 'Price', 'Status', 'MOQ']
+    const csvContent = [
+      headers.join(','),
+      ...filteredProducts.map(p => {
+        const categoryName = categories.find(c => c.id === p.category_id)?.name || 'Uncategorized'
+        return [
+          p.id,
+          `"${p.name?.replace(/"/g, '""')}"`,
+          `"${(p as any).sku || ''}"`,
+          `"${categoryName}"`,
+          p.base_price,
+          p.is_active ? 'Active' : 'Draft',
+          p.min_order_qty || 1
+        ].join(',')
+      })
+    ].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `products_export_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+  }
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out">
@@ -1209,10 +1245,10 @@ export default function ProductsClient({ initialProducts, categories }: Products
       ) : (
         /* TABLE VIEW */
         <div className="bg-white/80 backdrop-blur-2xl rounded-[24px] border border-black/5 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.06)] overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-black/[0.06] bg-[#fbfbfd]/90 text-[11px] font-bold uppercase tracking-wider text-[#86868b] select-none">
+          <div className="overflow-x-auto min-h-[400px] max-h-[70vh]">
+            <table className="w-full text-left border-collapse relative">
+              <thead className="sticky top-0 z-20 shadow-sm backdrop-blur-xl bg-[#fbfbfd]/95">
+                <tr className="border-b border-black/[0.06] text-[11px] font-bold uppercase tracking-wider text-[#86868b] select-none">
                   {/* Select All Checkbox */}
                   <th className="py-3.5 pl-5 pr-2 w-10">
                     <button
@@ -1379,6 +1415,11 @@ export default function ProductsClient({ initialProducts, categories }: Products
 
                           <div className="flex flex-col min-w-0 max-w-[280px]">
                             <div className="flex items-center gap-1.5">
+                              {prod.model_number && (
+                                <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded bg-gray-800 text-white text-[10px] font-bold uppercase tracking-wider" title="Model Number / SKU">
+                                  {prod.model_number}
+                                </span>
+                              )}
                               <span
                                 onClick={() => openEditModal(prod)}
                                 className="font-bold text-[#1d1d1f] truncate hover:text-[#e3231c] cursor-pointer transition-colors"
@@ -1399,7 +1440,7 @@ export default function ProductsClient({ initialProducts, categories }: Products
                             </div>
 
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[11px] text-[#86868b] font-mono truncate max-w-[180px]">{prod.slug}</span>
+                              <span className="text-[11px] text-[#86868b] font-mono truncate max-w-[150px]">{prod.slug}</span>
                               {Array.isArray(prod.color_variants) && prod.color_variants.length > 0 && (
                                 <div className="flex items-center -space-x-1">
                                   {prod.color_variants.slice(0, 4).map((c, i) => (
@@ -1666,6 +1707,39 @@ export default function ProductsClient({ initialProducts, categories }: Products
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {hasMore && (
+        <div className="flex justify-center mt-6 mb-2">
+          <button
+            onClick={async () => {
+              setIsLoadingMore(true)
+              const nextPage = page + 1
+              const res = await fetchProductsAction({ page: nextPage, limit: 50 })
+              if (res.data && res.data.length > 0) {
+                setProducts(prev => {
+                  const newProducts = [...prev]
+                  res.data.forEach((p: any) => { if (!newProducts.find(existing => existing.id === p.id)) newProducts.push(p) })
+                  return newProducts
+                })
+                setBaselineProducts(prev => {
+                  const newBaseline = [...prev]
+                  res.data.forEach((p: any) => { if (!newBaseline.find(existing => existing.id === p.id)) newBaseline.push(p) })
+                  return newBaseline
+                })
+                setPage(nextPage)
+                setHasMore(res.data.length === 50)
+              } else {
+                setHasMore(false)
+              }
+              setIsLoadingMore(false)
+            }}
+            disabled={isLoadingMore}
+            className="px-6 py-2.5 bg-white hover:bg-gray-50 text-[#1d1d1f] text-[13px] font-semibold rounded-xl shadow-sm border border-black/10 transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {isLoadingMore ? <Loader2 size={16} className="animate-spin text-[#0066FF]" /> : 'Load Older Products From Database'}
+          </button>
         </div>
       )}
 
@@ -1943,20 +2017,35 @@ export default function ProductsClient({ initialProducts, categories }: Products
                     </div>
 
                     {/* Category Selection */}
-                    <div>
-                      <label className="block text-[12px] font-bold uppercase tracking-wider text-[#86868b] mb-1.5">
-                        Category
-                      </label>
-                      <select
-                        value={formData.category_id}
-                        onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                        className="w-full px-4 py-2.5 rounded-xl bg-white border border-black/10 text-[14px] font-medium text-[#1d1d1f] focus:outline-none focus:ring-4 focus:ring-[#e3231c]/10 focus:border-[#e3231c]/30 cursor-pointer"
-                      >
-                        <option value="">Uncategorized</option>
-                        {categories.map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-[12px] font-bold uppercase tracking-wider text-[#86868b] mb-1.5">
+                          Category
+                        </label>
+                        <select
+                          value={formData.category_id}
+                          onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                          className="w-full px-4 py-2.5 rounded-xl bg-white border border-black/10 text-[14px] font-medium text-[#1d1d1f] focus:outline-none focus:ring-4 focus:ring-[#e3231c]/10 focus:border-[#e3231c]/30 cursor-pointer"
+                        >
+                          <option value="">Uncategorized</option>
+                          {categories.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-[12px] font-bold uppercase tracking-wider text-[#86868b] mb-1.5">
+                          Model Number / SKU
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.model_number}
+                          onChange={(e) => setFormData({ ...formData, model_number: e.target.value })}
+                          placeholder="e.g. J156, H405 (Admin Only)"
+                          className="w-full px-4 py-2.5 rounded-xl bg-white border border-black/10 text-[14px] text-[#1d1d1f] focus:outline-none focus:ring-4 focus:ring-[#e3231c]/10 focus:border-[#e3231c]/30 font-medium"
+                        />
+                      </div>
                     </div>
 
                     {/* Short Description */}

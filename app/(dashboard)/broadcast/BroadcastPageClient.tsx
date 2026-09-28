@@ -53,33 +53,33 @@ interface BroadcastPageClientProps {
 const PRESET_CAMPAIGNS = [
   {
     id: 'festive_gifting',
-    title: 'Executive Corporate Gifting Collection',
-    category: 'Corporate Gifting',
+    title: 'Corporate Gifting',
+    category: 'Gifting',
     icon: Gift,
     mediaUrl: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?q=80&w=1000&auto=format&fit=crop',
     linkUrl: 'https://outflank.in/products',
-    buttonText: 'View Corporate Catalog',
-    message: `Outflank Executive Corporate Gifting Collection\n\nElevate your organization's stakeholder appreciation with our curated bespoke gift hampers, luxury apparel, and precision-crafted drinkware.\n\nVolume benefits on orders of 50+ units include complimentary brand identity embroidery, dedicated account concierge, and PAN-India scheduled dispatch.\n\nExplore our corporate catalog via the link below or reply directly to this message.`,
+    buttonText: 'View Catalog',
+    message: `Exclusive Corporate Gifting Collection\n\nCurated gift hampers, luxury apparel, and drinkware for your team.\n\nEnjoy bulk discounts on 50+ units with complimentary branding.`,
   },
   {
     id: 'custom_polo',
-    title: '240 GSM Bio-Washed Piqué Polo Program',
-    category: 'Custom Apparel',
+    title: 'Custom Polos',
+    category: 'Apparel',
     icon: Shirt,
     mediaUrl: 'https://images.unsplash.com/photo-1581655353564-df123a1eb820?q=80&w=1000&auto=format&fit=crop',
     linkUrl: 'https://outflank.in/customize',
-    buttonText: 'Configure Custom Polos',
-    message: `Outflank Bespoke 240 GSM Piqué Polo Program\n\nEquip your team with institutional-grade bio-washed organic cotton polos engineered for executive comfort and long-term durability.\n\nComplimentary 3D digital sample mockups prepared within 24 hours. Tiered enterprise wholesale pricing applies.\n\nAccess our interactive customizer via the link below.`,
+    buttonText: 'Customize Now',
+    message: `Bespoke 240 GSM Piqué Polos\n\nPremium bio-washed organic cotton polos for your team.\n\nGet free 3D mockups in 24 hours. Wholesale pricing applies.`,
   },
   {
     id: 'vip_loyalty',
-    title: 'Client Loyalty Privilege Program',
-    category: 'Client Loyalty',
+    title: 'Client Loyalty',
+    category: 'Loyalty',
     icon: ShoppingBag,
-    mediaUrl: '',
+    mediaUrl: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1000&auto=format&fit=crop',
     linkUrl: 'https://outflank.in',
-    buttonText: 'Access Preferred Rate',
-    message: `Outflank Client Loyalty Privilege\n\nHello {name}, as a valued Outflank client, we are pleased to extend an exclusive 10% preferred rate on your subsequent merchandise or gifting requisition.\n\nApply code VIP10 during checkout on outflank.in. Valid for 7 days across our complete catalog.`,
+    buttonText: 'Shop Now',
+    message: `Special VIP Privilege\n\nEnjoy an exclusive 10% off your next order.\n\nUse code VIP10 at checkout. Valid for 7 days.`,
   },
 ]
 
@@ -654,11 +654,12 @@ export default function BroadcastPageClient({
                 <Check size={18} />
               </div>
               <div>
-                <h3 className="font-bold text-sm text-slate-900">Broadcast Completed</h3>
+                <h3 className="font-bold text-sm text-slate-900">Broadcast Dispatched</h3>
                 <p className="text-xs text-slate-600 mt-0.5">
-                  Delivered to <strong>{broadcastResult.sentCount}</strong> recipients out of {broadcastResult.totalRecipients}.
-                  {broadcastResult.failedCount > 0 && ` (${broadcastResult.failedCount} failed).`}
+                  Accepted by Meta: <strong>{broadcastResult.sentCount}</strong> of {broadcastResult.totalRecipients} recipients.
+                  {broadcastResult.failedCount > 0 && <span className="text-rose-600 font-semibold"> {broadcastResult.failedCount} rejected by Meta API.</span>}
                 </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Messages queued by Meta. Actual delivery depends on device connectivity.</p>
               </div>
             </div>
             <button
@@ -670,13 +671,21 @@ export default function BroadcastPageClient({
           </div>
 
           <div className="max-h-48 overflow-y-auto space-y-1 p-2 bg-white rounded-xl border border-slate-200">
-            {broadcastResult.results.map((r, i) => (
-              <div key={i} className="flex items-center justify-between p-2 rounded-lg text-xs bg-slate-50 border border-slate-100">
-                <span className="font-medium text-slate-900">{r.name} <span className="font-mono text-slate-500 text-[11px]">({r.phone})</span></span>
-                <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${
+            {broadcastResult.results.map((r: any, i: number) => (
+              <div key={i} className="flex items-start justify-between p-2 rounded-lg text-xs bg-slate-50 border border-slate-100 gap-2">
+                <div className="min-w-0">
+                  <span className="font-medium text-slate-900">{r.name} <span className="font-mono text-slate-500 text-[11px]">({r.phone})</span></span>
+                  {r.status === 'failed' && r.error && (
+                    <p className="text-[10px] text-rose-600 mt-0.5 truncate" title={r.error}>{r.error}</p>
+                  )}
+                  {r.status === 'sent' && r.messageId && (
+                    <p className="text-[10px] text-slate-400 mt-0.5 font-mono truncate">wamid: {r.messageId.slice(-12)}</p>
+                  )}
+                </div>
+                <span className={`shrink-0 px-2 py-0.5 rounded-md text-[10px] font-semibold ${
                   r.status === 'sent' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
                 }`}>
-                  {r.status === 'sent' ? 'Delivered' : 'Failed'}
+                  {r.status === 'sent' ? 'Queued ✓' : 'Failed ✗'}
                 </span>
               </div>
             ))}
@@ -1200,9 +1209,7 @@ export default function BroadcastPageClient({
               </div>
 
               <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                <span>
-                  Click any contact to toggle. Broadcast strictly targets checked recipients.
-                </span>
+                <span>Select contacts above to include them in the broadcast.</span>
                 <span className="font-semibold text-slate-700">
                   Targeting {activeSelectedCount} of {activeContactsList.length} Contacts
                 </span>
@@ -1219,34 +1226,34 @@ export default function BroadcastPageClient({
 
             {/* Campaign Preset Cards */}
             <div className="space-y-2">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
                 Standard Campaign Templates
               </span>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {PRESET_CAMPAIGNS.map((preset) => {
                   const isSelected = activePreset === preset.id
                   return (
                     <div
                       key={preset.id}
                       onClick={() => handleSelectPreset(preset)}
-                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                      className={`p-2.5 rounded-lg border transition-all cursor-pointer flex flex-col justify-between ${
                         isSelected
-                          ? 'border-slate-900 bg-slate-50/70 shadow-xs ring-1 ring-slate-900'
+                          ? 'border-slate-900 bg-slate-50 shadow-xs'
                           : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/50'
                       }`}
                     >
                       <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
                             {preset.category}
                           </span>
                           {isSelected && (
-                            <span className="w-4 h-4 rounded-full bg-slate-900 text-white flex items-center justify-center">
-                              <Check size={10} />
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-900 text-white flex items-center justify-center">
+                              <Check size={8} strokeWidth={3} />
                             </span>
                           )}
                         </div>
-                        <h4 className="font-semibold text-xs text-slate-900 leading-snug">{preset.title}</h4>
+                        <h4 className="font-semibold text-[11px] text-slate-800 leading-tight">{preset.title}</h4>
                       </div>
                     </div>
                   )
@@ -1255,28 +1262,28 @@ export default function BroadcastPageClient({
             </div>
 
             {/* Internal Campaign Name */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700">Internal Campaign Reference</label>
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold text-slate-600">Internal Campaign Reference</label>
               <input
                 type="text"
                 value={campaignTitle}
                 onChange={(e) => setCampaignTitle(e.target.value)}
-                className="w-full text-xs font-medium p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-slate-900 transition-colors"
+                className="w-full text-xs font-medium p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-slate-900 transition-colors"
               />
             </div>
 
             {/* WhatsApp Message Body */}
-            <div className="space-y-2">
+            <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-700">
+                <label className="text-[11px] font-semibold text-slate-600">
                   Message Body Copy
                 </label>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mr-1">Variable Tag:</span>
+                  <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider mr-1">Variable Tag:</span>
                   <button
                     type="button"
                     onClick={() => insertTag('{name}')}
-                    className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors cursor-pointer"
+                    className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
                   >
                     + &#123;name&#125;
                   </button>
@@ -1285,13 +1292,13 @@ export default function BroadcastPageClient({
 
               <textarea
                 ref={textareaRef}
-                rows={7}
+                rows={6}
                 value={messageText}
                 onChange={(e) => {
                   setMessageText(e.target.value)
                   setActivePreset('custom')
                 }}
-                className="w-full text-xs font-sans p-3.5 rounded-xl border border-slate-200 focus:outline-none focus:border-slate-900 leading-relaxed transition-colors"
+                className="w-full text-xs font-sans p-3 rounded-lg border border-slate-200 focus:outline-none focus:border-slate-900 leading-relaxed transition-colors"
                 placeholder="Enter your message copy here..."
               />
             </div>
@@ -1329,9 +1336,9 @@ export default function BroadcastPageClient({
                         setImageAspectRatio('landscape')
                         setActivePreset('custom')
                       }}
-                      className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer transition-colors"
+                      className="text-[10px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-100/50 px-2 py-1 rounded-md flex items-center gap-1 cursor-pointer transition-all shadow-2xs"
                     >
-                      <X size={12} /> Remove Media
+                      <X size={12} strokeWidth={2.5} /> Remove Media
                     </button>
                   )}
                 </div>
@@ -1378,12 +1385,7 @@ export default function BroadcastPageClient({
                 </button>
               </div>
 
-              {/* WebP & Supabase Storage Verification Note + Shape Indicator */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-slate-500 pt-0.5">
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck size={13} className="text-emerald-600 shrink-0" />
-                  Auto-converted to WebP strictly under 30KB &bull; Stored permanently in Supabase CDN
-                </span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-1 text-[11px] text-slate-500 pt-0.5">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {mediaUrl && (
                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1">
@@ -1403,14 +1405,8 @@ export default function BroadcastPageClient({
                 </div>
               </div>
 
-              {/* Aspect Ratio Framing Mode Selector */}
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-                <div className="space-y-0.5">
-                  <p className="font-semibold text-slate-800 text-[11px]">Preview Aspect Ratio Mode</p>
-                  <p className="text-[10px] text-slate-500">
-                    WhatsApp delivers images with natural proportions. Any shape (Square 1:1, Landscape 16:9, Portrait 4:5) is preserved.
-                  </p>
-                </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+                <p className="font-semibold text-slate-800 text-[11px]">Preview Aspect Ratio</p>
                 <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-slate-200 shrink-0">
                   <button
                     type="button"
@@ -1577,9 +1573,9 @@ export default function BroadcastPageClient({
                       setButtonText('')
                       setActivePreset('custom')
                     }}
-                    className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
+                    className="text-[10px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-100/50 px-2 py-1 rounded-md flex items-center gap-1 cursor-pointer transition-all shadow-2xs"
                   >
-                    <X size={12} /> Remove Link
+                    <X size={12} strokeWidth={2.5} /> Remove Link
                   </button>
                 )}
               </div>
@@ -1743,54 +1739,75 @@ export default function BroadcastPageClient({
                   </span>
                 </div>
 
-                {/* WhatsApp Chat Bubble */}
-                <div className="w-full max-w-[95%] bg-white rounded-2xl rounded-tl-xs shadow-xs border border-slate-200/60 overflow-hidden space-y-0">
-                  {/* Image Banner with Natural Aspect Ratio Support (Square, Rectangle, etc.) */}
-                  {mediaUrl && (
-                    <div className="w-full bg-slate-100 overflow-hidden relative border-b border-slate-100 flex items-center justify-center">
-                      <img
-                        src={mediaUrl}
-                        alt="Campaign Banner"
-                        className={`w-full transition-all ${
-                          previewFit === 'cover'
-                            ? 'h-48 object-cover'
-                            : 'h-auto max-h-[360px] object-contain block'
-                        }`}
-                        onError={(e) => {
-                          (e.target as HTMLElement).style.display = 'none'
-                        }}
-                      />
-                    </div>
-                  )}
+                {/* WhatsApp Chat Bubble — mirrors exactly what recipients receive */}
+                {(() => {
+                  const previewImage = mediaUrl || 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?q=80&w=1000&auto=format&fit=crop'
+                  const previewLink  = linkUrl  || 'https://outflank.in'
+                  const previewBtn   = buttonText || 'Visit Outflank'
+                  const usingDefault = !mediaUrl
+                  return (
+                    <div className="w-full max-w-[95%] space-y-1">
+                      {usingDefault && (
+                        <p className="text-[9.5px] text-amber-600 font-semibold flex items-center gap-1 px-1">
+                          <span>⚡</span> Default Outflank image used (no custom image selected)
+                        </p>
+                      )}
+                      <div className="bg-white rounded-2xl rounded-tl-xs shadow-xs border border-slate-200/60 overflow-hidden">
+                        {/* Header image — ALWAYS present (default if none uploaded) */}
+                        <div className="w-full bg-slate-100 overflow-hidden relative border-b border-slate-100 flex items-center justify-center">
+                          <img
+                            src={previewImage}
+                            alt="Campaign Banner"
+                            className={`w-full transition-all ${
+                              previewFit === 'cover'
+                                ? 'h-48 object-cover'
+                                : 'h-auto max-h-[360px] object-contain block'
+                            }`}
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none'
+                            }}
+                          />
+                        </div>
 
-                  {/* Caption & Message Body */}
-                  <div className="p-3.5 space-y-2">
-                    <p className="text-[12px] text-slate-900 whitespace-pre-line leading-relaxed font-sans select-text">
-                      {messageText.replace(/{name}/gi, 'Client')}
-                    </p>
+                        {/* Template boilerplate header */}
+                        <div className="px-3.5 pt-3 pb-0">
+                          <p className="text-[12px] text-slate-900 leading-snug">
+                            Hello <span className="font-semibold text-slate-900">Client</span>,<br/><br/>
+                            We have a quick update for you today:
+                          </p>
+                        </div>
 
-                    {/* Timestamp & double ticks */}
-                    <div className="flex items-center justify-end gap-1 text-[9.5px] text-slate-400 font-medium pt-1">
-                      <span>{currentTime}</span>
-                      <CheckCheck size={13} className="text-[#34B7F1]" />
-                    </div>
-                  </div>
+                        {/* User-typed message body */}
+                        <div className="px-3.5 pt-2 pb-2 space-y-2">
+                          <p className="text-[12px] text-slate-900 whitespace-pre-line leading-relaxed font-sans select-text">
+                            {messageText.replace(/{name}/gi, 'Client')}
+                          </p>
+                          <p className="text-[12px] text-slate-900 leading-snug">
+                            Thank you for your time!<br/>
+                            - Outflank Team
+                          </p>
+                          <div className="flex items-center justify-end gap-1 text-[9.5px] text-slate-400 font-medium pt-1">
+                            <span>{currentTime}</span>
+                            <CheckCheck size={13} className="text-[#34B7F1]" />
+                          </div>
+                        </div>
 
-                  {/* WhatsApp Official CTA Button (Clickable!) */}
-                  {linkUrl && (
-                    <div className="border-t border-slate-100 bg-slate-50/50">
-                      <a
-                        href={linkUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full flex items-center justify-center gap-2 py-2.5 px-3 text-[#075E54] hover:bg-emerald-50 text-xs font-semibold transition-colors text-center group"
-                      >
-                        <ExternalLink size={12} className="shrink-0 text-[#075E54] group-hover:scale-105 transition-transform" />
-                        <span className="truncate">{buttonText || 'Visit Outflank'}</span>
-                      </a>
+                        {/* CTA Button — ALWAYS present */}
+                        <div className="border-t border-slate-100 bg-slate-50/50">
+                          <a
+                            href={previewLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full flex items-center justify-center gap-2 py-2.5 px-3 text-[#075E54] hover:bg-emerald-50 text-xs font-semibold transition-colors text-center group"
+                          >
+                            <ExternalLink size={12} className="shrink-0 text-[#075E54] group-hover:scale-105 transition-transform" />
+                            <span className="truncate">{previewBtn}</span>
+                          </a>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
+                  )
+                })()}
 
                 {/* Scroll Indicator */}
                 <div className="text-center py-2">
