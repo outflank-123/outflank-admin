@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Users, ExternalLink, Tags, Package, Image as ImageIcon, Settings, ShoppingBag, Megaphone, Briefcase, RefreshCw } from 'lucide-react'
+import { LayoutDashboard, Users, ExternalLink, Tags, Package, Image as ImageIcon, Settings, ShoppingBag, Megaphone, Briefcase, RefreshCw, Ticket } from 'lucide-react'
 import AdminLogoutButton from './AdminLogoutButton'
 import { clearAllAdminCache } from '@/lib/adminCache'
 
@@ -34,6 +34,7 @@ export default function AdminSidebar({ userEmail, userRole = 'admin' }: AdminSid
     { href: '/categories', icon: Tags, label: 'Categories' },
     { href: '/products', icon: Package, label: 'Products' },
     { href: '/orders', icon: ShoppingBag, label: 'Retail Orders' },
+    { href: '/coupons', icon: Ticket, label: 'Coupons' },
     { href: '/customers', icon: Users, label: 'Customers' },
     { href: '/broadcast', icon: Megaphone, label: 'WhatsApp Broadcast' },
     { href: '/settings', icon: Settings, label: 'Store Settings' },
