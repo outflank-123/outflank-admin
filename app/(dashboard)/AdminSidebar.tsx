@@ -24,6 +24,7 @@ export default function AdminSidebar({ userEmail, userRole = 'admin' }: AdminSid
   const router = useRouter()
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [inboxUnread, setInboxUnread] = useState(0)
+  const [isCollapsed, setIsCollapsed] = useState(false)
 
   // Load initial unread count + subscribe to real-time changes
   useEffect(() => {
@@ -111,21 +112,26 @@ export default function AdminSidebar({ userEmail, userRole = 'admin' }: AdminSid
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-[13px] font-medium transition-all group ${
+              className={`flex items-center gap-3 py-2.5 rounded-xl text-[13px] font-medium transition-all group ${
+                isCollapsed ? 'px-3 justify-center' : 'px-4'
+              } ${
                 isActive 
                   ? 'bg-black/[0.04] text-[#e3231c] shadow-sm font-semibold' 
                   : 'text-[#1d1d1f]/70 hover:text-[#1d1d1f] hover:bg-black/[0.02]'
               }`}
+              title={isCollapsed ? item.label : undefined}
             >
               <item.icon 
                 size={18} 
-                className={`transition-colors ${
+                className={`transition-colors shrink-0 ${
                   isActive ? 'text-[#e3231c]' : 'text-[#1d1d1f]/40 group-hover:text-[#1d1d1f]/70'
                 }`} 
               />
-              <span className="flex-1">{item.label}</span>
+              {!isCollapsed && <span className="flex-1 truncate">{item.label}</span>}
               {'badge' in item && (item as any).badge > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-bold leading-none min-w-[18px] text-center animate-pulse">
+                <span className={`rounded-full bg-emerald-500 text-white font-bold leading-none min-w-[18px] text-center animate-pulse ${
+                  isCollapsed ? 'absolute top-1 right-1 px-1 py-0.5 text-[8px]' : 'px-1.5 py-0.5 text-[10px]'
+                }`}>
                   {(item as any).badge > 99 ? '99+' : (item as any).badge}
                 </span>
               )}
@@ -135,7 +141,7 @@ export default function AdminSidebar({ userEmail, userRole = 'admin' }: AdminSid
       </nav>
 
       {/* Fast Cache & Sync Card */}
-      <div className="px-4 py-3 border-t border-black/[0.03]">
+      <div className={`px-4 py-3 border-t border-black/[0.03] ${isCollapsed ? 'hidden' : 'block'}`}>
         <div className="p-2.5 rounded-2xl bg-black/[0.02] border border-black/[0.04] flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
@@ -160,29 +166,41 @@ export default function AdminSidebar({ userEmail, userRole = 'admin' }: AdminSid
       </div>
 
       {/* Footer */}
-      <div className="px-5 py-6 border-t border-black/[0.03] bg-gradient-to-t from-white/50 to-transparent shrink-0">
-        <div className="flex items-center gap-3 px-2 mb-4">
+      <div className={`px-5 py-6 border-t border-black/[0.03] bg-gradient-to-t from-white/50 to-transparent shrink-0 ${isCollapsed ? 'flex flex-col items-center px-2 py-4 gap-4' : ''}`}>
+        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3 px-2 mb-4'}`}>
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#e3231c] to-orange-500 text-white flex items-center justify-center text-xs font-bold shadow-sm shrink-0">
             {userEmail?.charAt(0).toUpperCase() ?? 'A'}
           </div>
-          <div className="flex flex-col truncate">
-            <span className="text-xs font-semibold text-[#1d1d1f] truncate">{userEmail ?? 'Admin'}</span>
-            <span className="text-[10px] text-[#1d1d1f]/50">Super Administrator</span>
-          </div>
+          {!isCollapsed && (
+            <div className="flex flex-col truncate">
+              <span className="text-xs font-semibold text-[#1d1d1f] truncate">{userEmail ?? 'Admin'}</span>
+              <span className="text-[10px] text-[#1d1d1f]/50">Super Administrator</span>
+            </div>
+          )}
         </div>
         
-        <div className="flex items-center justify-between px-2">
-          <Link
-            href="/"
-            target="_blank"
-            className="flex items-center gap-1.5 text-xs font-medium text-[#1d1d1f]/50 hover:text-[#1d1d1f] transition-colors"
-          >
-            <ExternalLink size={14} />
-            Live Site
-          </Link>
-          <div className="w-[1px] h-3 bg-black/10" />
-          <AdminLogoutButton />
-        </div>
+        {!isCollapsed ? (
+          <div className="flex items-center justify-between px-2">
+            <Link
+              href="/"
+              target="_blank"
+              className="flex items-center gap-1.5 text-xs font-medium text-[#1d1d1f]/50 hover:text-[#1d1d1f] transition-colors"
+            >
+              <ExternalLink size={14} />
+              Live Site
+            </Link>
+            <div className="w-[1px] h-3 bg-black/10" />
+            <AdminLogoutButton />
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-4">
+            <Link href="/" target="_blank" title="Live Site" className="text-[#1d1d1f]/50 hover:text-[#1d1d1f]">
+              <ExternalLink size={16} />
+            </Link>
+            {/* If we had iconOnly prop we'd pass it here, but let's just render the default */}
+            <AdminLogoutButton />
+          </div>
+        )}
       </div>
     </aside>
   )
