@@ -222,6 +222,38 @@ export async function POST(req: Request) {
       });
 
       if (res.success) {
+        // Upsert conversation for this recipient
+        const { data: conv } = await supabase
+          .from('whatsapp_conversations')
+          .upsert(
+            {
+              contact_phone:   recipient.phone,
+              contact_name:    recipient.name,
+              last_message:    `[Broadcast] ${campaignTitle || 'Campaign'}`,
+              last_message_at: new Date().toISOString(),
+              unread_count:    0,
+              status:          'open',
+            },
+            { onConflict: 'contact_phone', ignoreDuplicates: false }
+          )
+          .select('id')
+          .single();
+
+        if (conv?.id && res.messageId) {
+          // Save the broadcast message in the chat thread
+          await supabase.from('whatsapp_messages').insert({
+            conversation_id: conv.id,
+            wamid:           res.messageId,
+            direction:       'outbound',
+            message_type:    resolvedMediaUrl && resolvedMediaUrl !== DEFAULT_OUTFLANK_IMAGE ? 'image' : 'text',
+            body:            `[Broadcast: ${campaignTitle || 'Campaign'}]\n\n${personalizedText}`,
+            media_url:       null, // Bypass Supabase storage
+            status:          'sent',
+            sent_by:         'admin',
+            timestamp:       new Date().toISOString(),
+          });
+        }
+
         results.push({
           phone: recipient.phone,
           name: recipient.name,

@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { createClient } from '@supabase/supabase-js'
 import {
   Search, CheckCheck, Check, MessageSquare, Send, Smile,
-  Paperclip, MoreVertical, Phone, Video, ArrowLeft,
+  Paperclip, MoreVertical, ArrowLeft,
   RefreshCw, X, ShieldCheck, Inbox, Plus, Edit3,
   UserPlus, CheckCircle2, Clock, XCircle, ImageIcon,
   FileText, Film
@@ -269,6 +269,7 @@ export default function InboxClient({ initialConversations }: InboxClientProps) 
   const [filterStatus, setFilterStatus]  = useState<'all' | 'unread' | 'open' | 'resolved'>('all')
   const [mobileShowChat, setMobileShowChat] = useState(false)
   const [showNewModal, setShowNewModal]   = useState(false)
+  const [sidebarOpen, setSidebarOpen]     = useState(true)
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [attachmentPreview, setAttachmentPreview] = useState<{
@@ -510,7 +511,11 @@ export default function InboxClient({ initialConversations }: InboxClientProps) 
       <div className="flex h-full bg-[#f0f2f5] overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
 
         {/* ══════════ LEFT: CONVERSATION LIST ══════════ */}
-        <div className={`flex flex-col bg-white border-r border-slate-200 w-full md:w-[340px] lg:w-[380px] shrink-0 ${mobileShowChat ? 'hidden md:flex' : 'flex'}`}>
+        <div
+          className={`flex flex-col bg-white border-r border-slate-200 shrink-0 transition-all duration-300 overflow-hidden ${
+            mobileShowChat ? 'hidden md:flex' : 'flex'
+          } ${sidebarOpen ? 'w-full md:w-[340px] lg:w-[360px]' : 'w-0 md:w-0 border-r-0'}`}
+        >
 
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3.5 bg-[#f0f2f5] border-b border-slate-200">
@@ -685,8 +690,17 @@ export default function InboxClient({ initialConversations }: InboxClientProps) 
                 </div>
 
                 <div className="flex items-center gap-1 text-slate-500">
-                  <button className="p-2 hover:bg-white rounded-full transition-colors"><Video size={18} /></button>
-                  <button className="p-2 hover:bg-white rounded-full transition-colors"><Phone size={18} /></button>
+                  {/* Toggle sidebar button */}
+                  <button
+                    onClick={() => setSidebarOpen(v => !v)}
+                    title={sidebarOpen ? 'Hide contacts' : 'Show contacts'}
+                    className="p-2 hover:bg-white rounded-full transition-colors"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2"/>
+                      <path d="M9 3v18"/>
+                    </svg>
+                  </button>
 
                   {/* Status dropdown */}
                   <div className="relative" ref={statusMenuRef}>
