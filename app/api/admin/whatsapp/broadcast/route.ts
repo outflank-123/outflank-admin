@@ -178,18 +178,19 @@ export async function POST(req: Request) {
       messageId?: string;
     }> = [];
 
-    // ── Default Outflank branding image used when no custom image is uploaded ──
-    // outflank_custom_message requires an IMAGE header — this ensures the user's
-    // custom message body ({{2}}) is ALWAYS delivered as written.
-    const DEFAULT_OUTFLANK_IMAGE = 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?q=80&w=1000&auto=format&fit=crop';
+    const DEFAULT_OUTFLANK_IMAGE = 'https://bestgifts.co.in/wp-content/uploads/2026/09/j156.jpg';
     const DEFAULT_OUTFLANK_LINK  = 'https://outflank.in';
 
-    // ALWAYS use outflank_marketing_flex so {{2}} carries the user's custom message.
-    // outflank_broadcast has a FIXED hardcoded body and ignores whatever the user typed.
-    const resolvedMediaUrl = mediaUrl?.trim() || DEFAULT_OUTFLANK_IMAGE;
+    // The UI sends an Unsplash URL by default. Unsplash aggressively blocks Meta bots, 
+    // causing messages to fail asynchronously. Force override it.
+    let resolvedMediaUrl = mediaUrl?.trim() || DEFAULT_OUTFLANK_IMAGE;
+    if (resolvedMediaUrl.includes('unsplash.com')) {
+       resolvedMediaUrl = DEFAULT_OUTFLANK_IMAGE;
+    }
     const resolvedLinkUrl  = linkUrl?.trim()  || DEFAULT_OUTFLANK_LINK;
 
-    for (const recipient of recipients) {
+    // Send to all recipients concurrently without artificial batch limits
+    await Promise.all(recipients.map(async (recipient) => {
       const personalizedText = messageText
         .replace(/{name}/gi, recipient.name)
         .replace(/{customer_name}/gi, recipient.name);
@@ -235,10 +236,7 @@ export async function POST(req: Request) {
           error: res.error,
         });
       }
-
-      // 150ms polite delay
-      await new Promise((resolve) => setTimeout(resolve, 150));
-    }
+    }));
 
     const sentCount = results.filter((r) => r.status === 'sent').length;
     const failedCount = results.filter((r) => r.status === 'failed').length;

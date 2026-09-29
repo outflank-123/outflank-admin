@@ -56,7 +56,7 @@ const PRESET_CAMPAIGNS = [
     title: 'Corporate Gifting',
     category: 'Gifting',
     icon: Gift,
-    mediaUrl: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?q=80&w=1000&auto=format&fit=crop',
+    mediaUrl: '',
     linkUrl: 'https://outflank.in/products',
     buttonText: 'View Catalog',
     message: `Exclusive Corporate Gifting Collection\n\nCurated gift hampers, luxury apparel, and drinkware for your team.\n\nEnjoy bulk discounts on 50+ units with complimentary branding.`,
@@ -66,7 +66,7 @@ const PRESET_CAMPAIGNS = [
     title: 'Custom Polos',
     category: 'Apparel',
     icon: Shirt,
-    mediaUrl: 'https://images.unsplash.com/photo-1581655353564-df123a1eb820?q=80&w=1000&auto=format&fit=crop',
+    mediaUrl: '',
     linkUrl: 'https://outflank.in/customize',
     buttonText: 'Customize Now',
     message: `Bespoke 240 GSM Piqué Polos\n\nPremium bio-washed organic cotton polos for your team.\n\nGet free 3D mockups in 24 hours. Wholesale pricing applies.`,
@@ -76,7 +76,7 @@ const PRESET_CAMPAIGNS = [
     title: 'Client Loyalty',
     category: 'Loyalty',
     icon: ShoppingBag,
-    mediaUrl: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1000&auto=format&fit=crop',
+    mediaUrl: '',
     linkUrl: 'https://outflank.in',
     buttonText: 'Shop Now',
     message: `Special VIP Privilege\n\nEnjoy an exclusive 10% off your next order.\n\nUse code VIP10 at checkout. Valid for 7 days.`,
@@ -86,15 +86,15 @@ const PRESET_CAMPAIGNS = [
 const SAMPLE_IMAGES = [
   {
     label: 'Corporate Hampers',
-    url: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?q=80&w=1000&auto=format&fit=crop',
+    url: 'https://bestgifts.co.in/wp-content/uploads/2026/09/j156.jpg',
   },
   {
     label: 'Apparel & Polos',
-    url: 'https://images.unsplash.com/photo-1581655353564-df123a1eb820?q=80&w=1000&auto=format&fit=crop',
+    url: 'https://bestgifts.co.in/wp-content/uploads/2026/09/j156.jpg',
   },
   {
     label: 'Executive Desk Sets',
-    url: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?q=80&w=1000&auto=format&fit=crop',
+    url: 'https://bestgifts.co.in/wp-content/uploads/2026/09/j156.jpg',
   },
 ]
 
@@ -143,9 +143,9 @@ export default function BroadcastPageClient({
   const [activePreset, setActivePreset] = useState<string>('festive_gifting')
 
   // Attachments state
-  const [mediaUrl, setMediaUrl] = useState<string>(PRESET_CAMPAIGNS[0].mediaUrl)
-  const [linkUrl, setLinkUrl] = useState<string>(PRESET_CAMPAIGNS[0].linkUrl)
-  const [buttonText, setButtonText] = useState<string>(PRESET_CAMPAIGNS[0].buttonText)
+  const [mediaUrl, setMediaUrl] = useState<string>('')
+  const [linkUrl, setLinkUrl] = useState<string>('')
+  const [buttonText, setButtonText] = useState<string>('')
   const [uploadingImage, setUploadingImage] = useState(false)
   const [uploadedImageSize, setUploadedImageSize] = useState<string | null>(null)
   const [libraryFiles, setLibraryFiles] = useState<UploadedMediaItem[]>([])
@@ -1327,20 +1327,7 @@ export default function BroadcastPageClient({
                     <FolderOpen size={12} className="text-slate-500" />
                     {showLibraryPanel ? 'Hide Library' : `Saved Banners (${libraryFiles.length})`}
                   </button>
-                  {mediaUrl && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMediaUrl('')
-                        setUploadedImageSize(null)
-                        setImageAspectRatio('landscape')
-                        setActivePreset('custom')
-                      }}
-                      className="text-[10px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-100/50 px-2 py-1 rounded-md flex items-center gap-1 cursor-pointer transition-all shadow-2xs"
-                    >
-                      <X size={12} strokeWidth={2.5} /> Remove Media
-                    </button>
-                  )}
+
                 </div>
               </div>
 
@@ -1565,19 +1552,7 @@ export default function BroadcastPageClient({
                   <LinkIcon size={15} className="text-slate-500" />
                   Interactive Call-To-Action Link
                 </label>
-                {linkUrl && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLinkUrl('')
-                      setButtonText('')
-                      setActivePreset('custom')
-                    }}
-                    className="text-[10px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-100/50 px-2 py-1 rounded-md flex items-center gap-1 cursor-pointer transition-all shadow-2xs"
-                  >
-                    <X size={12} strokeWidth={2.5} /> Remove Link
-                  </button>
-                )}
+
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1741,32 +1716,34 @@ export default function BroadcastPageClient({
 
                 {/* WhatsApp Chat Bubble — mirrors exactly what recipients receive */}
                 {(() => {
-                  const previewImage = mediaUrl || 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?q=80&w=1000&auto=format&fit=crop'
-                  const previewLink  = linkUrl  || 'https://outflank.in'
-                  const previewBtn   = buttonText || 'Visit Outflank'
-                  const usingDefault = !mediaUrl
+                  const previewImage = mediaUrl
+                  const previewLink  = linkUrl
+                  const previewBtn   = buttonText || 'View Catalog'
+                  
                   return (
                     <div className="w-full max-w-[95%] space-y-1">
-                      {usingDefault && (
-                        <p className="text-[9.5px] text-amber-600 font-semibold flex items-center gap-1 px-1">
-                          <span>⚡</span> Default Outflank image used (no custom image selected)
-                        </p>
-                      )}
                       <div className="bg-white rounded-2xl rounded-tl-xs shadow-xs border border-slate-200/60 overflow-hidden">
                         {/* Header image — ALWAYS present (default if none uploaded) */}
                         <div className="w-full bg-slate-100 overflow-hidden relative border-b border-slate-100 flex items-center justify-center">
-                          <img
-                            src={previewImage}
-                            alt="Campaign Banner"
-                            className={`w-full transition-all ${
-                              previewFit === 'cover'
-                                ? 'h-48 object-cover'
-                                : 'h-auto max-h-[360px] object-contain block'
-                            }`}
-                            onError={(e) => {
-                              (e.target as HTMLElement).style.display = 'none'
-                            }}
-                          />
+                          {previewImage ? (
+                            <img
+                              src={previewImage}
+                              alt="Campaign Banner"
+                              className={`w-full transition-all ${
+                                previewFit === 'cover'
+                                  ? 'h-48 object-cover'
+                                  : 'h-auto max-h-[360px] object-contain block'
+                              }`}
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none'
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-32 flex flex-col items-center justify-center text-slate-400 gap-1 px-4 text-center border border-dashed border-rose-300 bg-rose-50/50">
+                               <span className="text-[10px] font-semibold text-rose-600">⚠️ MEDIA REQUIRED</span>
+                               <span className="text-[9px] text-rose-500/80 max-w-[200px]">Meta API requires an image URL for this template.</span>
+                            </div>
+                          )}
                         </div>
 
                         {/* Template boilerplate header */}
@@ -1835,9 +1812,9 @@ export default function BroadcastPageClient({
           <div className="pt-2 max-w-[370px] mx-auto">
             <button
               type="button"
-              disabled={broadcasting || activeSelectedCount === 0}
+              disabled={broadcasting || activeSelectedCount === 0 || !mediaUrl.trim() || !linkUrl.trim() || !messageText.trim()}
               onClick={handleLaunchBroadcast}
-              className="w-full py-3.5 rounded-xl bg-slate-900 hover:bg-black disabled:opacity-40 text-white font-semibold text-xs tracking-wide transition-all shadow-sm flex items-center justify-center gap-2.5 cursor-pointer"
+              className="w-full py-3.5 rounded-xl bg-slate-900 hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-xs tracking-wide transition-all shadow-sm flex items-center justify-center gap-2.5 cursor-pointer"
             >
               {broadcasting ? (
                 <>
