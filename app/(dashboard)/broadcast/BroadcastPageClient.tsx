@@ -144,8 +144,8 @@ export default function BroadcastPageClient({
 
   // Attachments state
   const [mediaUrl, setMediaUrl] = useState<string>('')
-  const [linkUrl, setLinkUrl] = useState<string>('')
-  const [buttonText, setButtonText] = useState<string>('')
+  const [linkUrl, setLinkUrl] = useState<string>(PRESET_CAMPAIGNS[0].linkUrl)
+  const [buttonText, setButtonText] = useState<string>(PRESET_CAMPAIGNS[0].buttonText)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [uploadedImageSize, setUploadedImageSize] = useState<string | null>(null)
   const [libraryFiles, setLibraryFiles] = useState<UploadedMediaItem[]>([])
