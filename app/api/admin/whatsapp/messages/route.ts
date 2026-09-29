@@ -17,9 +17,11 @@ export async function GET(req: Request) {
     const supabase = createAdminClient();
     const { data: messages, error } = await supabase
       .from('whatsapp_messages')
-      .select('*')
+      // Only select the columns we actually render — smaller payload = faster
+      .select('id,conversation_id,wamid,direction,message_type,body,media_url,status,sent_by,timestamp')
       .eq('conversation_id', conversationId)
-      .order('timestamp', { ascending: true });
+      .order('timestamp', { ascending: true })
+      .limit(200);
 
     if (error) throw error;
 

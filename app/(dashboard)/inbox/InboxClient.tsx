@@ -364,7 +364,15 @@ export default function InboxClient({ initialConversations }: InboxClientProps) 
         const newMsg = payload.new as Message
         setMessages(prev => {
           if (!activeConv || newMsg.conversation_id !== activeConv.id) return prev
+          // Already exists by real ID
           if (prev.find(m => m.id === newMsg.id)) return prev
+          // Replace optimistic outbound message that matches by wamid
+          if (newMsg.direction === 'outbound' && newMsg.wamid) {
+            const hasOptimistic = prev.find(m => m.wamid === newMsg.wamid && m.id.startsWith('optimistic-'))
+            if (hasOptimistic) {
+              return prev.map(m => m.id === hasOptimistic.id ? newMsg : m)
+            }
+          }
           return [...prev, newMsg]
         })
       })
@@ -428,7 +436,10 @@ export default function InboxClient({ initialConversations }: InboxClientProps) 
         setMessages(prev => prev.map(m => m.id === optimisticMsg.id ? { ...m, status: 'failed' } : m))
         alert(`Failed to send: ${data.error}`)
       } else {
-        setMessages(prev => prev.map(m => m.id === optimisticMsg.id ? { ...m, status: 'sent', wamid: data.wamid } : m))
+        // Update optimistic message with real wamid so Realtime dedup works
+        setMessages(prev => prev.map(m =>
+          m.id === optimisticMsg.id ? { ...m, status: 'sent', wamid: data.wamid } : m
+        ))
       }
     } catch {
       setMessages(prev => prev.map(m => m.id === optimisticMsg.id ? { ...m, status: 'failed' } : m))
