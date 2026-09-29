@@ -1,12 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Users, ExternalLink, Tags, Package, Image as ImageIcon, Settings, ShoppingBag, Megaphone, Briefcase, RefreshCw, Ticket } from 'lucide-react'
+import { LayoutDashboard, Users, ExternalLink, Tags, Package, Image as ImageIcon, Settings, ShoppingBag, Megaphone, Briefcase, RefreshCw, Ticket, MessageSquare } from 'lucide-react'
 import AdminLogoutButton from './AdminLogoutButton'
 import { clearAllAdminCache } from '@/lib/adminCache'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 interface AdminSidebarProps {
   userEmail?: string
@@ -17,6 +23,29 @@ export default function AdminSidebar({ userEmail, userRole = 'admin' }: AdminSid
   const pathname = usePathname()
   const router = useRouter()
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [inboxUnread, setInboxUnread] = useState(0)
+
+  // Load initial unread count + subscribe to real-time changes
+  useEffect(() => {
+    const loadUnread = async () => {
+      const { data } = await supabase
+        .from('whatsapp_conversations')
+        .select('unread_count')
+      if (data) {
+        setInboxUnread(data.reduce((sum, c) => sum + (c.unread_count || 0), 0))
+      }
+    }
+    loadUnread()
+
+    const channel = supabase
+      .channel('sidebar_unread')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_conversations' }, () => {
+        loadUnread()
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   const handleSyncRefresh = () => {
     setIsRefreshing(true)
@@ -37,6 +66,7 @@ export default function AdminSidebar({ userEmail, userRole = 'admin' }: AdminSid
     { href: '/coupons', icon: Ticket, label: 'Coupons' },
     { href: '/customers', icon: Users, label: 'Customers' },
     { href: '/broadcast', icon: Megaphone, label: 'WhatsApp Broadcast' },
+    { href: '/inbox', icon: MessageSquare, label: 'WhatsApp Inbox', badge: inboxUnread },
     { href: '/settings', icon: Settings, label: 'Store Settings' },
   ]
 
@@ -93,7 +123,12 @@ export default function AdminSidebar({ userEmail, userRole = 'admin' }: AdminSid
                   isActive ? 'text-[#e3231c]' : 'text-[#1d1d1f]/40 group-hover:text-[#1d1d1f]/70'
                 }`} 
               />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {'badge' in item && (item as any).badge > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-bold leading-none min-w-[18px] text-center animate-pulse">
+                  {(item as any).badge > 99 ? '99+' : (item as any).badge}
+                </span>
+              )}
             </Link>
           )
         })}
