@@ -28,6 +28,8 @@ export interface CustomizationData {
   logoStoragePath?: string
   file_size_bytes?: number
   fileSizeBytes?: number
+  printing_instructions?: string
+  printingInstructions?: string
   file_size_kb?: string
   fileSizeKb?: string
   print_position?: string
@@ -65,9 +67,10 @@ interface Order {
   awb_number?: string | null
   dispatched_at?: string | null
   shadowfax_status?: string | null
-  notes?: string | null
   delivered_at?: string | null
   assets_purged?: boolean | null
+  printing_instructions?: string | null
+  notes?: string | null
   shipping_fee?: number | null
   razorpay_payment_id?: string | null
   retail_order_items: OrderItem[]
@@ -935,6 +938,19 @@ export default function OrdersTableClient({ initialOrders }: { initialOrders: Or
                                               )}
                                             </div>
 
+                                          </div>
+                                        )}
+
+                                        {/* Printing Instructions (Item-level) */}
+                                        {(custom?.printing_instructions || custom?.printingInstructions) && (
+                                          <div className="mt-4 p-4 rounded-xl border border-amber-200 bg-amber-50 shadow-sm">
+                                            <div className="flex items-center gap-2 mb-2 text-amber-800">
+                                              <FileText size={16} className="text-amber-600" />
+                                              <h4 className="text-xs font-bold uppercase tracking-wider">Printing Instructions</h4>
+                                            </div>
+                                            <div className="text-sm text-gray-700 whitespace-pre-wrap font-medium">
+                                              {custom.printing_instructions || custom.printingInstructions}
+                                            </div>
                                           </div>
                                         )}
 
