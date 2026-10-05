@@ -77,6 +77,11 @@ export default async function RetailOrdersPage() {
     console.error('Error fetching retail orders:', error)
   }
 
+  console.log('--- DEBUG INFO ---')
+  console.log('SUPABASE URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+  console.log('ORDERS LENGTH:', orders?.length)
+  console.log('------------------')
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
