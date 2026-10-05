@@ -155,14 +155,21 @@ function sfxStatusLabel(status: string | null | undefined) {
 
 export default function OrdersTableClient({ initialOrders }: { initialOrders: Order[] }) {
   const [orders, setOrders] = useState<Order[]>(() => {
-    if (initialOrders && initialOrders.length > 0) return initialOrders
+    // If we're on the server, we just use initialOrders
+    if (typeof window === 'undefined') return initialOrders
+    
+    // If the server explicitly passes an empty array, it means the database is empty
+    if (initialOrders && initialOrders.length === 0) {
+      return initialOrders
+    }
+
     const cached = getAdminCache<Order[]>('outflank_admin_orders', 10 * 60 * 1000, 'session')
     return cached?.data || initialOrders
   })
 
   // Sync server prop to state & cache
   useEffect(() => {
-    if (initialOrders && initialOrders.length > 0) {
+    if (initialOrders) {
       setOrders(initialOrders)
       setAdminCache('outflank_admin_orders', initialOrders, 'session')
     }
