@@ -81,8 +81,9 @@ export default function BannersClient({ initialBanners }: { initialBanners: Bann
       // Reusing uploadProductImage since it uploads to 'product-images' bucket which works for banners too
       const url = await uploadProductImage(data)
       setFormData(prev => ({ ...prev, image_url: url }))
-    } catch (err) {
-      alert('Failed to upload image. Make sure your bucket allows uploads.')
+    } catch (err: any) {
+      console.error(err)
+      alert(`Failed to upload image: ${err.message || err}`)
     } finally {
       setUploading(false)
     }

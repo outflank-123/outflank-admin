@@ -452,7 +452,10 @@ export async function uploadProductImage(formData: FormData) {
   const contentType = file.type === 'image/svg+xml' ? 'image/svg+xml' : 'image/webp'
   const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`
 
-  const { data, error } = await supabase.storage
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const adminSupabase = createAdminClient()
+
+  const { data, error } = await adminSupabase.storage
     .from('product-images')
     .upload(fileName, buffer, {
       contentType: contentType,
@@ -464,7 +467,7 @@ export async function uploadProductImage(formData: FormData) {
     throw new Error(error.message || 'Failed to upload image.')
   }
 
-  const { data: publicUrlData } = supabase.storage
+  const { data: publicUrlData } = adminSupabase.storage
     .from('product-images')
     .getPublicUrl(data.path)
 
