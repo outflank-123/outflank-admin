@@ -18,13 +18,21 @@ interface Banner {
 
 export default function BannersClient({ initialBanners }: { initialBanners: Banner[] }) {
   const [banners, setBanners] = useState<Banner[]>(() => {
-    if (initialBanners && initialBanners.length > 0) return initialBanners
+    // If we're on the server, we just use initialBanners
+    if (typeof window === 'undefined') return initialBanners
+    
+    // If the server explicitly passes an empty array, it means the database is empty
+    if (initialBanners && initialBanners.length === 0) {
+      return initialBanners
+    }
+
     const cached = getAdminCache<Banner[]>('outflank_admin_banners', 10 * 60 * 1000, 'session')
     return cached?.data || initialBanners
   })
 
+  // Sync server prop to state & cache
   useEffect(() => {
-    if (initialBanners && initialBanners.length > 0) {
+    if (initialBanners) {
       setBanners(initialBanners)
       setAdminCache('outflank_admin_banners', initialBanners, 'session')
     }
