@@ -396,10 +396,10 @@ export async function uploadProductImage(formData: FormData) {
     throw new Error('Invalid file type. Only JPEG, PNG, WEBP, and SVG are supported.')
   }
 
-  // Validate file size (max 5MB initial)
-  const MAX_FILE_SIZE = 5 * 1024 * 1024
+  // Validate file size (max 10MB initial)
+  const MAX_FILE_SIZE = 10 * 1024 * 1024
   if (file.size > MAX_FILE_SIZE) {
-    throw new Error('File size exceeds the 5MB limit.')
+    throw new Error('File size exceeds the 10MB limit.')
   }
 
   const bytes = await file.arrayBuffer()
@@ -407,7 +407,7 @@ export async function uploadProductImage(formData: FormData) {
 
   // Skip compression for SVG
   if (file.type !== 'image/svg+xml') {
-    const targetBytes = 30 * 1024 // 30 KB
+    const targetBytes = 100 * 1024 // 100 KB
     let quality = 85
     let isUnderTarget = false
     
@@ -425,7 +425,7 @@ export async function uploadProductImage(formData: FormData) {
       quality -= 5
     }
 
-    // If still over 30KB, try scaling down resolution iteratively
+    // If still over 100KB, try scaling down resolution iteratively
     if (!isUnderTarget) {
       let scale = 0.85
       const metadata = await sharp(buffer).metadata()
