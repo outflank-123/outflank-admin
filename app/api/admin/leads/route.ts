@@ -81,6 +81,7 @@ export async function PATCH(request: NextRequest) {
       if (item.email) updateData.email = item.email
       if (item.phone !== undefined) updateData.phone = item.phone
       if (item.requirements !== undefined) updateData.requirements = item.requirements
+      if (item.source !== undefined) updateData.source = item.source
       updateData.updated_at = new Date().toISOString()
 
       const { data, error } = await admin
@@ -101,7 +102,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   // Single lead update
-  const { id, status, notes, name, company, email, phone, requirements } = body
+  const { id, status, notes, name, company, email, phone, requirements, source } = body
   if (!id) return NextResponse.json({ error: 'Lead ID required' }, { status: 400 })
 
   const admin = createAdminClient()
@@ -113,6 +114,7 @@ export async function PATCH(request: NextRequest) {
   if (email) updateData.email = email
   if (phone !== undefined) updateData.phone = phone
   if (requirements !== undefined) updateData.requirements = requirements
+  if (source !== undefined) updateData.source = source
   updateData.updated_at = new Date().toISOString()
 
   const { data, error } = await admin
