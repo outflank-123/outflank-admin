@@ -19,7 +19,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="h-screen bg-[#fbfbfd] flex selection:bg-[#e3231c]/20 overflow-hidden">
       <AdminSidebar userEmail={user?.email} userRole={role} />
 
-      <main className="flex-1 max-w-[1200px] w-full mx-auto p-6 lg:p-8 h-screen overflow-y-auto">
+      <main className="flex-1 w-full max-w-[1800px] mx-auto p-4 sm:p-6 lg:p-8 h-screen overflow-y-auto">
         <GlobalSearchCommand />
         {children}
       </main>

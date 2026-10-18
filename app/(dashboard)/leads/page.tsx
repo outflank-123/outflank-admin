@@ -19,7 +19,7 @@ export default async function AdminLeadsPage({ searchParams }: LeadsPageProps) {
 
   let query = supabase
     .from('leads')
-    .select('id, name, company, email, phone, requirements, product_name, status, source, notes, created_at, updated_at')
+    .select('id, name, company, email, phone, requirements, product_name, status, source, notes, deal_value, order_items, created_at, updated_at')
     .order('created_at', { ascending: false })
 
   if (status && status !== 'all') {

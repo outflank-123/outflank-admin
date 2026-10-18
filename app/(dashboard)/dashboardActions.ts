@@ -75,9 +75,9 @@ export async function fetchDashboardData(range: string = 'last_30_days', customS
     // Current Leads Stats
     const currentLeads = leads || []
     const totalLeads = currentLeads.length
-    const newLeads = currentLeads.filter(l => l.status === 'new').length
-    const qualifiedLeads = currentLeads.filter(l => l.status === 'qualified').length
-    const closedLeads = currentLeads.filter(l => l.status === 'closed').length
+    const newLeads = currentLeads.filter(l => l.status === 'conversation' || l.status === 'new').length
+    const qualifiedLeads = currentLeads.filter(l => l.status === 'finalise' || l.status === 'sampling' || l.status === 'qualified').length
+    const closedLeads = currentLeads.filter(l => l.status === 'close_deal' || l.status === 'delivered' || l.status === 'closed').length
     const leadConversion = totalLeads > 0 ? (closedLeads / totalLeads) * 100 : 0
 
     // Previous Leads Stats

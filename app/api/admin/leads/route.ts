@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { name, company, email, phone, requirements, product_name, status, source, notes } = body
+  const { name, company, email, phone, requirements, product_name, status, source, notes, deal_value, order_items } = body
 
   if (!name || !company || !email) {
     return NextResponse.json({ error: 'Name, company, and email are required' }, { status: 400 })
@@ -48,9 +48,11 @@ export async function POST(request: NextRequest) {
       phone: phone || null,
       requirements: requirements || null,
       product_name: product_name || null,
-      status: status || 'new',
+      status: status || 'conversation',
       source: source || 'admin_manual',
-      notes: notes || null
+      notes: notes || null,
+      deal_value: deal_value != null ? Number(deal_value) : 0,
+      order_items: order_items || []
     })
     .select()
     .single()
@@ -81,7 +83,10 @@ export async function PATCH(request: NextRequest) {
       if (item.email) updateData.email = item.email
       if (item.phone !== undefined) updateData.phone = item.phone
       if (item.requirements !== undefined) updateData.requirements = item.requirements
+      if (item.product_name !== undefined) updateData.product_name = item.product_name
       if (item.source !== undefined) updateData.source = item.source
+      if (item.deal_value !== undefined) updateData.deal_value = Number(item.deal_value)
+      if (item.order_items !== undefined) updateData.order_items = item.order_items
       updateData.updated_at = new Date().toISOString()
 
       const { data, error } = await admin
@@ -102,7 +107,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   // Single lead update
-  const { id, status, notes, name, company, email, phone, requirements, source } = body
+  const { id, status, notes, name, company, email, phone, requirements, product_name, source, deal_value, order_items } = body
   if (!id) return NextResponse.json({ error: 'Lead ID required' }, { status: 400 })
 
   const admin = createAdminClient()
@@ -114,7 +119,10 @@ export async function PATCH(request: NextRequest) {
   if (email) updateData.email = email
   if (phone !== undefined) updateData.phone = phone
   if (requirements !== undefined) updateData.requirements = requirements
+  if (product_name !== undefined) updateData.product_name = product_name
   if (source !== undefined) updateData.source = source
+  if (deal_value !== undefined) updateData.deal_value = Number(deal_value)
+  if (order_items !== undefined) updateData.order_items = order_items
   updateData.updated_at = new Date().toISOString()
 
   const { data, error } = await admin
@@ -127,4 +135,20 @@ export async function PATCH(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ success: true, lead: data })
+}
+
+export async function DELETE(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { searchParams } = new URL(request.url)
+  const id = searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'Lead ID is required' }, { status: 400 })
+
+  const admin = createAdminClient()
+  const { error } = await admin.from('leads').delete().eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ success: true, id })
 }

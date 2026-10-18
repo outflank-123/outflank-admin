@@ -10,15 +10,18 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url)
   const leadId = searchParams.get('lead_id')
-  if (!leadId) return NextResponse.json({ error: 'lead_id is required' }, { status: 400 })
 
   const admin = createAdminClient()
-  const { data, error } = await admin
+  let query = admin
     .from('lead_payment_logs')
     .select('*')
-    .eq('lead_id', leadId)
     .order('payment_date', { ascending: false })
 
+  if (leadId && leadId !== 'all') {
+    query = query.eq('lead_id', leadId)
+  }
+
+  const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ logs: data ?? [] })
@@ -37,13 +40,23 @@ export async function POST(request: NextRequest) {
     quantity,
     unit_price,
     total_amount,
+    amount,
     payment_type,
+    payment_method,
     payment_date,
     notes,
   } = body
 
-  if (!lead_id || total_amount == null) {
-    return NextResponse.json({ error: 'lead_id and total_amount are required' }, { status: 400 })
+  const resolvedAmount = total_amount != null ? Number(total_amount) : (amount != null ? Number(amount) : null)
+
+  if (!lead_id || resolvedAmount == null || isNaN(resolvedAmount) || resolvedAmount <= 0) {
+    return NextResponse.json({ error: 'lead_id and a valid positive amount are required' }, { status: 400 })
+  }
+
+  // Combine payment method with notes if present
+  let combinedNotes = notes?.trim() || ''
+  if (payment_method && payment_method.trim()) {
+    combinedNotes = combinedNotes ? `[${payment_method.trim()}] ${combinedNotes}` : `[${payment_method.trim()}]`
   }
 
   const admin = createAdminClient()
@@ -54,10 +67,10 @@ export async function POST(request: NextRequest) {
       product_name: product_name || null,
       quantity: quantity ? Number(quantity) : 1,
       unit_price: unit_price ? Number(unit_price) : 0,
-      total_amount: Number(total_amount),
+      total_amount: resolvedAmount,
       payment_type: payment_type || 'advance',
       payment_date: payment_date || new Date().toISOString(),
-      notes: notes || null,
+      notes: combinedNotes || null,
     })
     .select()
     .single()

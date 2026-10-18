@@ -148,8 +148,8 @@ export default function DashboardClient({ data, currentRange }: { data: any, cur
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-5">
           {renderMetricCard('Total Leads', data.leads.current, data.leads.change, Users, 'from-blue-500/10 to-cyan-500/10 text-blue-600 ring-blue-500/20')}
           {renderMetricCard('Conversion Rate', data.leadConversion.current, 0, CheckCircle2, 'from-emerald-500/10 to-green-500/10 text-emerald-600 ring-emerald-500/20', '', '%')}
-          {renderMetricCard('New Inquiries', data.feed.filter((f: any) => f.type === 'lead' && f.status === 'new').length, 0, Clock, 'from-amber-500/10 to-orange-500/10 text-amber-600 ring-amber-500/20')}
-          {renderMetricCard('Closed Deals', data.feed.filter((f: any) => f.type === 'lead' && f.status === 'closed').length, 0, IndianRupee, 'from-purple-500/10 to-fuchsia-500/10 text-purple-600 ring-purple-500/20')}
+          {renderMetricCard('New Inquiries', data.feed.filter((f: any) => f.type === 'lead' && (f.status === 'conversation' || f.status === 'new')).length, 0, Clock, 'from-amber-500/10 to-orange-500/10 text-amber-600 ring-amber-500/20')}
+          {renderMetricCard('Closed Deals', data.feed.filter((f: any) => f.type === 'lead' && (f.status === 'close_deal' || f.status === 'delivered' || f.status === 'closed')).length, 0, IndianRupee, 'from-purple-500/10 to-fuchsia-500/10 text-purple-600 ring-purple-500/20')}
         </div>
       </div>
 
